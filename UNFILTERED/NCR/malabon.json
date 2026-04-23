@@ -2,7 +2,6 @@
 {
   "type": "FeatureCollection",
   "features": [
-<<<<<<< HEAD
     {
       "type": "Feature",
       "geometry": {
@@ -541,14 +540,7 @@
         "area_km2": 53
       },
       "id": 1380100000
-<<<<<<< HEAD
     },
-
-=======
-},
->>>>>>> c0a97e1667266103d6f257d3240210157f6344b6
-=======
->>>>>>> gidan
     {
       "type": "Feature",
       "geometry": {
