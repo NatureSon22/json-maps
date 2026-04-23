@@ -6,6 +6,20 @@ const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
 
 // folders to scan
+
+const municipality = {
+  ncr: [
+    {
+      cityMuni: "Mandaluyong",
+      noOfBarangays: 27,
+    },
+    {
+      cityMuni: "Mandaluyong",
+      noOfBarangays: 27,
+    },
+  ],
+};
+
 const folders = ["ncr"];
 const defaultFolders = folders.map((folder) => path.join("formatted", folder));
 
