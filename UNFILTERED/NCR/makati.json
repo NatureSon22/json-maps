@@ -1,4 +1,6 @@
 {
+    "features": [
+      {
       "type": "Feature",
       "geometry": {
         "type": "Polygon",
@@ -255,8 +257,6 @@
       },
       "id": 1380300000
 },
-{
-    "features": [
     {
       "type": "Feature",
       "geometry": {
@@ -1138,6 +1138,7 @@
         "area_km2": 0
       },
       "id": 1380300031
+    }
     ]
 }
 
