@@ -6,7 +6,8 @@ const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
 
 // folders to scan
-const defaultFolders = ["bataan", "batangas"];
+const folders = ["ncr"];
+const defaultFolders = folders.map((folder) => path.join("formatted", folder));
 
 const pathsToScan = inputPaths.length ? inputPaths : defaultFolders;
 
