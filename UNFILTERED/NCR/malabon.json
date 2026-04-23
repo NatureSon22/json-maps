@@ -1,4 +1,8 @@
+
 {
+  "type": "FeatureCollection",
+  "features": [
+    {
       "type": "Feature",
       "geometry": {
         "type": "MultiPolygon",
@@ -537,10 +541,6 @@
       },
       "id": 1380100000
 },
-
-{
-  "type": "FeatureCollection",
-  "features": [
     {
       "type": "Feature",
       "geometry": {
@@ -7079,3 +7079,4 @@
     }
   ]
 }
+
