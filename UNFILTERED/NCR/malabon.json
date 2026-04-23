@@ -1,4 +1,7 @@
 {
+  "type": "FeatureCollection",
+  "features": [
+    {
       "type": "Feature",
       "geometry": {
         "type": "MultiPolygon",
@@ -536,11 +539,8 @@
         "area_km2": 53
       },
       "id": 1380100000
-},
+    },
 
-{
-  "type": "FeatureCollection",
-  "features": [
     {
       "type": "Feature",
       "geometry": {

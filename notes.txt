@@ -1,0 +1,38 @@
+## new filter mapping:
+    /data - will contain the valid source of truth for checking:
+        - sample data:
+        const ncrdata = {
+            ncr: [
+            {
+                cityMuni: "Caloocan",
+                noOfBarangays: 27,
+            },
+            {
+                cityMuni: "Mandaluyong",
+                noOfBarangays: 27,
+            },
+            ],
+        };
+        // skeleton
+        const data = {
+            "file_name": {
+                cityMuni
+            }
+        }
+
+        example:
+        "adm3_en": "City of Caloocan",
+        "geo_level": "City",
+
+    - the files to be checked are on "/formatted"
+
+    - the  "adm3_en": should be (similar) (but not strictyly similar or case to case):
+        - if not fail, then state the reason: for example exected "Caloocan" but found "Gaogao"
+
+    - for the "first" (at index 0) value: it should be geo_level: "City/Mun",
+        - if not fail, then state the reason
+
+    - so check for the noOfBarangays, the specified no of barangays should be similar 
+        - if not fail, then state the reason
+
+    - use chalk js to show or highlight pass or fail
