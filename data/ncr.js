@@ -10,7 +10,7 @@ const ncr= {
         },
         {
             cityMuni: "Makati",
-            noOfBarangays: 33,
+            noOfBarangays: 23,
         },
         {
             cityMuni: "Malabon",
@@ -58,7 +58,7 @@ const ncr= {
         },
         {
             cityMuni: "Taguig",
-            noOfBarangays: 28,
+            noOfBarangays: 38,
         },
         {
             cityMuni: "Valenzuela",
