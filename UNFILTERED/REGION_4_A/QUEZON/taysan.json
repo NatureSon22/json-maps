@@ -1,6 +1,4 @@
-{
-  "type": "FeatureCollection",
-  "features": [
+
     {
       "type": "Feature",
       "geometry": {
@@ -1226,5 +1224,4 @@
       },
       "id": 401032020
     }
-  ]
-}
+  

@@ -4,9 +4,9 @@ const path = require("path");
 const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
 const folders = [
-  "unfiltered/region_3",
+  // "unfiltered/region_3",
   // "unfiltered/NCR",
-  // "unfiltered/region_4_A",
+  "unfiltered/region_4_A",
 ];
 const pathsToScan = inputPaths.length ? inputPaths : folders;
 

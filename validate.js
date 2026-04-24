@@ -9,8 +9,8 @@ const unfilteredDir = path.join(rootDir, "unfiltered");
 const dataDir = path.join(rootDir, "data");
 const formattedFolderAllowlist = [
   // "ncr",
-  "region_3",
-  // "region_4_A",
+  // "region_3",
+  "region_4_A",
 ];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
