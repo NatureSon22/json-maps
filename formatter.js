@@ -9,6 +9,14 @@ const pathsToScan = inputPaths.length ? inputPaths : folders;
 const FEATURE_COLLECTION_REGEX = /{"type"\s*:\s*"FeatureCollection"/;
 
 const ALLOWED_GEO_LEVELS = new Set(["Mun", "City", "Bgy"]);
+const GEO_LEVEL_MAP = {
+  mun: "Mun",
+  municipality: "Mun",
+  city: "City",
+  bgy: "Bgy",
+  brgy: "Bgy",
+  barangay: "Bgy",
+};
 
 function isDirectory(p) {
   return fs.existsSync(p) && fs.statSync(p).isDirectory();
@@ -303,8 +311,49 @@ function repairJson(rawText, filePath) {
   throw new Error(`Invalid JSON in ${filePath}`);
 }
 
+function normalizeGeoLevel(value) {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase();
+  return GEO_LEVEL_MAP[key] || null;
+}
+
+function extractFeaturesDeep(node, output = []) {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      extractFeaturesDeep(item, output);
+    }
+    return output;
+  }
+
+  if (!node || typeof node !== "object") {
+    return output;
+  }
+
+  const geoLevel = normalizeGeoLevel(node?.properties?.geo_level);
+  if (geoLevel) {
+    output.push(node);
+    return output;
+  }
+
+  if (node.type === "FeatureCollection" && Array.isArray(node.features)) {
+    for (const feature of node.features) {
+      extractFeaturesDeep(feature, output);
+    }
+    return output;
+  }
+
+  for (const value of Object.values(node)) {
+    if (value && typeof value === "object") {
+      extractFeaturesDeep(value, output);
+    }
+  }
+
+  return output;
+}
+
 function getFeatureLevel(feature) {
-  return String(feature?.properties?.geo_level || "");
+  return normalizeGeoLevel(feature?.properties?.geo_level) || "";
 }
 
 function getFeatureAdm3Psgc(feature) {
@@ -323,7 +372,7 @@ function normalizeFeature(feature) {
 
   const properties =
     feature.properties && typeof feature.properties === "object"
-      ? feature.properties
+      ? { ...feature.properties, geo_level: level }
       : {};
   const fallbackId =
     level === "Bgy" ? properties.adm4_psgc : properties.adm3_psgc;
@@ -365,18 +414,10 @@ function sortAndConsolidateFeatures(features) {
 }
 
 function normalizeGeoJson(data) {
-  let features = [];
+  let features = extractFeaturesDeep(data);
 
-  if (Array.isArray(data)) {
-    features = data.flatMap((item) => {
-      if (item.type === "FeatureCollection") return item.features || [];
-      if (item.type === "Feature") return [item];
-      return [];
-    });
-  } else if (data?.type === "FeatureCollection") {
-    features = data.features || [];
-  } else if (data?.type === "Feature") {
-    features = [data];
+  if (!features.length && Array.isArray(data)) {
+    features = data.flatMap((item) => extractFeaturesDeep(item));
   }
 
   features = features.map(normalizeFeature).filter(Boolean);

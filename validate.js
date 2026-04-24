@@ -6,6 +6,7 @@ const Table = require("cli-table3");
 const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const dataDir = path.join(rootDir, "data");
+const formattedFolderAllowlist = ["region_3"];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
   "city",
@@ -96,6 +97,16 @@ function collectJsonFiles(dir) {
     }
   }
   return results;
+}
+
+function getValidationRoots() {
+  if (!formattedFolderAllowlist.length) {
+    return [formattedDir];
+  }
+
+  return formattedFolderAllowlist
+    .map((folder) => path.join(formattedDir, folder))
+    .filter((folderPath) => fs.existsSync(folderPath));
 }
 
 function loadDataSources() {
@@ -323,7 +334,10 @@ function makeSummaryLabel(
 async function main() {
   const { default: chalk } = await import("chalk");
   const sources = loadDataSources();
-  const jsonFiles = collectJsonFiles(formattedDir);
+  const validationRoots = getValidationRoots();
+  const jsonFiles = validationRoots.flatMap((rootPath) =>
+    collectJsonFiles(rootPath),
+  );
   const formattedIndex = buildFormattedIndex(jsonFiles);
 
   if (!jsonFiles.length) {
