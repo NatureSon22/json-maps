@@ -443,7 +443,8 @@ function findSourceRecord(sourceArray, fileBase, firstFeature, provinceIdHint) {
       : sourceArray.filter(
           (record) => getRecordProvinceId(record) === provinceIdHint,
         );
-  const recordsToMatch = sourceCandidates.length > 0 ? sourceCandidates : sourceArray;
+  const recordsToMatch =
+    sourceCandidates.length > 0 ? sourceCandidates : sourceArray;
 
   const fileKey = normalizeText(fileBase);
   const candidate = recordsToMatch.find((record) => {
@@ -673,7 +674,8 @@ async function main() {
       const provinceName = getRecordProvince(record, sourceData, sourceKey);
       const provinceKey = normalizeText(provinceName);
       const provinceSet = formattedProvinceIndex[sourceKey]?.[provinceKey];
-      const lookupSet = provinceSet && provinceSet.size > 0 ? provinceSet : formattedSet;
+      const lookupSet =
+        provinceSet && provinceSet.size > 0 ? provinceSet : formattedSet;
 
       if (!hasMatchingFormattedFile(record, lookupSet)) {
         missingFiles.push({
