@@ -7,9 +7,9 @@ const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const dataDir = path.join(rootDir, "data");
 const formattedFolderAllowlist = [
-  // "ncr",  
-  // "region_3",
-  "region_4_A",
+  // "ncr",
+  "region_3",
+  // "region_4_A",
 ];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
@@ -216,6 +216,62 @@ function getRecordName(record) {
 
 function getRecordBarangayCount(record) {
   return Number(record.noOfBarangays ?? record.no_of_brgy ?? 0);
+}
+
+function getProvinceNameById(sourceData, provinceId) {
+  if (provinceId === undefined || provinceId === null) {
+    return "";
+  }
+
+  const candidates = [];
+
+  if (Array.isArray(sourceData?.provinces)) {
+    candidates.push(...sourceData.provinces);
+  }
+
+  if (sourceData && typeof sourceData === "object") {
+    for (const value of Object.values(sourceData)) {
+      if (
+        value &&
+        typeof value === "object" &&
+        Array.isArray(value.provinces)
+      ) {
+        candidates.push(...value.provinces);
+      }
+    }
+  }
+
+  const numericProvinceId = Number(provinceId);
+  const match = candidates.find((province) => {
+    const candidateId = Number(province?.id);
+    return Number.isFinite(candidateId) && candidateId === numericProvinceId;
+  });
+
+  return String(match?.name || "");
+}
+
+function getRecordProvince(record, sourceData, sourceKey) {
+  if (!record || typeof record !== "object") {
+    return sourceKey;
+  }
+
+  const explicitProvince =
+    record.province ||
+    record.province_name ||
+    record.provinceName ||
+    record.province_en;
+  if (explicitProvince) {
+    return String(explicitProvince);
+  }
+
+  const provinceId =
+    record.province_id ?? record.provinceId ?? record.provinceid;
+  const provinceFromId = getProvinceNameById(sourceData, provinceId);
+  if (provinceFromId) {
+    return provinceFromId;
+  }
+
+  return sourceKey;
 }
 
 function hasMatchingFormattedFile(record, formattedSet) {
@@ -460,6 +516,7 @@ async function main() {
       if (!hasMatchingFormattedFile(record, formattedSet)) {
         missingFiles.push({
           source: sourceKey,
+          province: getRecordProvince(record, sourceData, sourceKey),
           expected: getRecordName(record),
         });
       }
@@ -489,15 +546,15 @@ async function main() {
         chalk.whiteBright("Reason"),
       ],
       style: { head: ["red"] },
-      colWidths: [90, 22, 15, 15, 30],
+      colWidths: [42, 20, 12, 12, 34],
       wordWrap: true,
     });
     failedFiles.forEach((item) =>
       failTable.push([
         chalk.red(item.file),
         chalk.yellow(item.cityMuni || ""),
-        chalk.yellow(item.regionId ? `"adm2_psgc": ${item.regionId}` : "-"),
-        chalk.yellow(item.provinceId ? `"adm3_psgc": ${item.provinceId}` : "-"),
+        chalk.yellow(item.regionId || "-"),
+        chalk.yellow(item.provinceId || "-"),
         chalk.yellow(item.reason),
       ]),
     );
@@ -510,15 +567,17 @@ async function main() {
     const missingTable = new Table({
       head: [
         chalk.whiteBright("Source"),
+        chalk.whiteBright("Province"),
         chalk.whiteBright("Missing City/Muni"),
       ],
       style: { head: ["yellow"] },
-      colWidths: [20, 60],
+      colWidths: [18, 22, 48],
       wordWrap: true,
     });
     missingFiles.forEach((item) =>
       missingTable.push([
         chalk.yellow(item.source),
+        chalk.yellow(item.province || "-"),
         chalk.yellow(item.expected),
       ]),
     );
