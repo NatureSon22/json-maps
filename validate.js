@@ -6,7 +6,10 @@ const Table = require("cli-table3");
 const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const dataDir = path.join(rootDir, "data");
-const formattedFolderAllowlist = ["region_3"];
+const formattedFolderAllowlist = [
+  "region_3",
+  "region_4_A",
+];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
   "city",
@@ -133,6 +136,24 @@ function loadDataSources() {
   return sources;
 }
 
+function findSourceDataForKey(sources, sourceKey) {
+  if (sources[sourceKey]) {
+    return sources[sourceKey];
+  }
+
+  const normalizedSourceKey = normalizeText(sourceKey);
+  for (const [loadedKey, sourceData] of Object.entries(sources)) {
+    if (normalizeText(loadedKey) === normalizedSourceKey) {
+      return sourceData;
+    }
+    if (resolveSourceArray(sourceData, sourceKey).length > 0) {
+      return sourceData;
+    }
+  }
+
+  return null;
+}
+
 function getSourceKeyFromPath(filePath) {
   const relative = path.relative(formattedDir, filePath);
   const segments = relative.split(path.sep);
@@ -140,11 +161,51 @@ function getSourceKeyFromPath(filePath) {
 }
 
 function resolveSourceArray(sourceData, sourceKey) {
+  function pickArrayFromObject(obj, keyToMatch) {
+    if (!obj || typeof obj !== "object") {
+      return [];
+    }
+
+    if (Array.isArray(obj[keyToMatch])) {
+      return obj[keyToMatch];
+    }
+
+    const normalizedTarget = normalizeText(keyToMatch);
+    const matchingKey = Object.keys(obj).find(
+      (key) => normalizeText(key) === normalizedTarget,
+    );
+    if (matchingKey && Array.isArray(obj[matchingKey])) {
+      return obj[matchingKey];
+    }
+
+    const firstArray = Object.values(obj).find((value) => Array.isArray(value));
+    return Array.isArray(firstArray) ? firstArray : [];
+  }
+
   if (Array.isArray(sourceData[sourceKey])) return sourceData[sourceKey];
   if (Array.isArray(sourceData)) return sourceData;
   if (Array.isArray(sourceData.municipalities))
     return sourceData.municipalities;
   if (Array.isArray(sourceData.cities)) return sourceData.cities;
+
+  if (sourceData && typeof sourceData === "object") {
+    const direct = pickArrayFromObject(sourceData, sourceKey);
+    if (direct.length > 0) {
+      return direct;
+    }
+
+    for (const value of Object.values(sourceData)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        continue;
+      }
+
+      const nested = pickArrayFromObject(value, sourceKey);
+      if (nested.length > 0) {
+        return nested;
+      }
+    }
+  }
+
   return [];
 }
 
@@ -210,7 +271,7 @@ function findSourceRecord(sourceArray, fileBase, firstFeature) {
 function validateFile(filePath, sources, chalk) {
   const relativeFile = path.relative(rootDir, filePath);
   const sourceKey = getSourceKeyFromPath(filePath);
-  const sourceData = sources[sourceKey];
+  const sourceData = findSourceDataForKey(sources, sourceKey);
   const fileBase = path.basename(filePath, ".json");
 
   if (!sourceData) {

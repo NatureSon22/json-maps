@@ -3,7 +3,11 @@ const path = require("path");
 
 const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
-const folders = ["unfiltered/region_3", "unfiltered/NCR"];
+const folders = [
+  // "unfiltered/region_3",
+  // "unfiltered/NCR",
+  "unfiltered/region_4_A",
+];
 const pathsToScan = inputPaths.length ? inputPaths : folders;
 
 const FEATURE_COLLECTION_REGEX = /{"type"\s*:\s*"FeatureCollection"/;
