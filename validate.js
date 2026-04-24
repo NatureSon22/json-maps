@@ -7,6 +7,13 @@ const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const dataDir = path.join(rootDir, "data");
 const firstLevelAllowlist = new Set(["city", "mun"]);
+const locationNoiseWords = new Set([
+  "city",
+  "municipality",
+  "mun",
+  "of",
+  "the",
+]);
 
 function normalizeText(value) {
   if (value === undefined || value === null) {
@@ -19,13 +26,50 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function tokenizeText(value) {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  return String(value)
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function getMeaningfulNameTokens(value) {
+  return tokenizeText(value).filter((token) => !locationNoiseWords.has(token));
+}
+
+function hasTokenSubset(leftTokens, rightTokens) {
+  const rightSet = new Set(rightTokens);
+  return leftTokens.every((token) => rightSet.has(token));
+}
+
 function fuzzyIncludes(expected, actual) {
   const left = normalizeText(expected);
   const right = normalizeText(actual);
-  return (
+  if (
     left.length > 0 &&
     right.length > 0 &&
     (left.includes(right) || right.includes(left))
+  ) {
+    return true;
+  }
+
+  const leftTokens = getMeaningfulNameTokens(expected);
+  const rightTokens = getMeaningfulNameTokens(actual);
+  if (!leftTokens.length || !rightTokens.length) {
+    return false;
+  }
+
+  return (
+    hasTokenSubset(leftTokens, rightTokens) ||
+    hasTokenSubset(rightTokens, leftTokens)
   );
 }
 
@@ -87,11 +131,22 @@ function getSourceKeyFromPath(filePath) {
 function resolveSourceArray(sourceData, sourceKey) {
   if (Array.isArray(sourceData[sourceKey])) return sourceData[sourceKey];
   if (Array.isArray(sourceData)) return sourceData;
+  if (Array.isArray(sourceData.municipalities))
+    return sourceData.municipalities;
+  if (Array.isArray(sourceData.cities)) return sourceData.cities;
   return [];
 }
 
+function getRecordName(record) {
+  return String(record.cityMuni || record.name || "");
+}
+
+function getRecordBarangayCount(record) {
+  return Number(record.noOfBarangays ?? record.no_of_brgy ?? 0);
+}
+
 function hasMatchingFormattedFile(record, formattedSet) {
-  const expectedKey = normalizeText(record.cityMuni);
+  const expectedKey = normalizeText(getRecordName(record));
   if (!expectedKey || !formattedSet || formattedSet.size === 0) {
     return false;
   }
@@ -120,7 +175,7 @@ function buildFormattedIndex(jsonFiles) {
 function findSourceRecord(sourceArray, fileBase, firstFeature) {
   const fileKey = normalizeText(fileBase);
   const candidate = sourceArray.find((record) => {
-    const cityKey = normalizeText(record.cityMuni);
+    const cityKey = normalizeText(getRecordName(record));
     return (
       cityKey === fileKey ||
       cityKey.includes(fileKey) ||
@@ -132,7 +187,7 @@ function findSourceRecord(sourceArray, fileBase, firstFeature) {
   }
   const adm3Value = normalizeText(firstFeature?.properties?.adm3_en);
   return sourceArray.find((record) => {
-    const cityKey = normalizeText(record.cityMuni);
+    const cityKey = normalizeText(getRecordName(record));
     return (
       cityKey === adm3Value ||
       cityKey.includes(adm3Value) ||
@@ -147,18 +202,14 @@ function validateFile(filePath, sources, chalk) {
   const sourceData = sources[sourceKey];
   const fileBase = path.basename(filePath, ".json");
 
-  if (!sourceData || !Array.isArray(sourceData[sourceKey] || sourceData)) {
+  if (!sourceData) {
     return {
       passed: false,
       message: `No source-of-truth data found for folder '${sourceKey}'.`,
     };
   }
 
-  const dataArray = Array.isArray(sourceData[sourceKey])
-    ? sourceData[sourceKey]
-    : Array.isArray(sourceData)
-      ? sourceData
-      : [];
+  const dataArray = resolveSourceArray(sourceData, sourceKey);
   if (!dataArray.length) {
     return {
       passed: false,
@@ -195,7 +246,7 @@ function validateFile(filePath, sources, chalk) {
     };
   }
 
-  const expectedCity = String(sourceRecord.cityMuni || "");
+  const expectedCity = getRecordName(sourceRecord);
   const actualAdm3 = String(firstFeature?.properties?.adm3_en || "");
   const adm3Matches = fuzzyIncludes(expectedCity, actualAdm3);
 
@@ -203,7 +254,7 @@ function validateFile(filePath, sources, chalk) {
     (feature) =>
       String(feature?.properties?.geo_level || "").toLowerCase() === "bgy",
   ).length;
-  const expectedBarangays = Number(sourceRecord.noOfBarangays || 0);
+  const expectedBarangays = getRecordBarangayCount(sourceRecord);
   const diff = Math.abs(barangayCount - expectedBarangays);
   const tolerance = Math.max(1, Math.round(expectedBarangays * 0.05));
   const barangaysMatch =
@@ -313,11 +364,14 @@ async function main() {
     const dataArray = resolveSourceArray(sourceData, sourceKey);
     const formattedSet = formattedIndex[sourceKey] || new Set();
     for (const record of dataArray) {
-      if (!record || !record.cityMuni) {
+      if (!record || !getRecordName(record)) {
         continue;
       }
       if (!hasMatchingFormattedFile(record, formattedSet)) {
-        missingFiles.push({ source: sourceKey, expected: record.cityMuni });
+        missingFiles.push({
+          source: sourceKey,
+          expected: getRecordName(record),
+        });
       }
     }
   }

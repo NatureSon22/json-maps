@@ -1,13 +1,14 @@
-#!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
 
 const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
-const folders = ["ncr"];
-const defaultFolders = folders.map((folder) => path.join("unfiltered", folder));
-const pathsToScan = inputPaths.length ? inputPaths : defaultFolders;
+const folders = ["unfiltered/region_3", "unfiltered/NCR"];
+const pathsToScan = inputPaths.length ? inputPaths : folders;
+
 const FEATURE_COLLECTION_REGEX = /{"type"\s*:\s*"FeatureCollection"/;
+
+const ALLOWED_GEO_LEVELS = new Set(["Mun", "City", "Bgy"]);
 
 function isDirectory(p) {
   return fs.existsSync(p) && fs.statSync(p).isDirectory();
@@ -64,15 +65,13 @@ function extractLeadingJsonObject(rawText) {
   while (index < rawText.length && /\s/.test(rawText[index])) {
     index += 1;
   }
-  if (rawText[index] !== "{") {
-    return null;
-  }
+  if (rawText[index] !== "{") return null;
 
   let depth = 0;
   let inString = false;
   let escaped = false;
 
-  for (let i = index; i < rawText.length; i += 1) {
+  for (let i = index; i < rawText.length; i++) {
     const char = rawText[i];
     if (escaped) {
       escaped = false;
@@ -86,16 +85,16 @@ function extractLeadingJsonObject(rawText) {
       inString = !inString;
       continue;
     }
-    if (inString) {
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-    } else if (char === "}") {
-      depth -= 1;
+    if (inString) continue;
+
+    if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
       if (depth === 0) {
-        const objectText = rawText.slice(index, i + 1);
-        return { objectText, endIndex: i + 1 };
+        return {
+          objectText: rawText.slice(index, i + 1),
+          endIndex: i + 1,
+        };
       }
     }
   }
@@ -107,7 +106,7 @@ function extractJsonObjectFrom(rawText, startIndex) {
   let inString = false;
   let escaped = false;
 
-  for (let i = startIndex; i < rawText.length; i += 1) {
+  for (let i = startIndex; i < rawText.length; i++) {
     const char = rawText[i];
     if (escaped) {
       escaped = false;
@@ -121,13 +120,11 @@ function extractJsonObjectFrom(rawText, startIndex) {
       inString = !inString;
       continue;
     }
-    if (inString) {
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-    } else if (char === "}") {
-      depth -= 1;
+    if (inString) continue;
+
+    if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
       if (depth === 0) {
         return {
           objectText: rawText.slice(startIndex, i + 1),
@@ -142,23 +139,26 @@ function extractJsonObjectFrom(rawText, startIndex) {
 function extractFeatureObjects(rawText) {
   const features = [];
   let index = 0;
+
   while (index < rawText.length) {
     const featureIndex = rawText.indexOf('"type"', index);
-    if (featureIndex === -1) {
-      break;
-    }
+    if (featureIndex === -1) break;
+
     const braceIndex = rawText.lastIndexOf("{", featureIndex);
     if (braceIndex === -1) {
       index = featureIndex + 6;
       continue;
     }
+
     const objectMatch = extractJsonObjectFrom(rawText, braceIndex);
     if (!objectMatch) {
       index = featureIndex + 6;
       continue;
     }
+
     try {
       const parsed = JSON.parse(objectMatch.objectText);
+
       if (
         parsed &&
         typeof parsed === "object" &&
@@ -167,11 +167,90 @@ function extractFeatureObjects(rawText) {
       ) {
         features.push(parsed);
       }
-    } catch (_) {
-      // ignore invalid objects
-    }
+    } catch (_) {}
+
     index = objectMatch.endIndex;
   }
+
+  return features;
+}
+
+function extractTopLevelJsonObjects(rawText) {
+  const objects = [];
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let startIndex = -1;
+
+  for (let i = 0; i < rawText.length; i++) {
+    const char = rawText[i];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+
+    if (char === "{") {
+      if (depth === 0) {
+        startIndex = i;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0 && startIndex !== -1) {
+          objects.push(rawText.slice(startIndex, i + 1));
+          startIndex = -1;
+        }
+      }
+    }
+  }
+
+  return objects;
+}
+
+function extractFeaturesFromTopLevelObjects(rawText) {
+  const features = [];
+  const objectTexts = extractTopLevelJsonObjects(rawText);
+
+  for (const objectText of objectTexts) {
+    try {
+      const parsed = JSON.parse(objectText);
+      if (!parsed || typeof parsed !== "object") {
+        continue;
+      }
+
+      if (
+        parsed.type === "FeatureCollection" &&
+        Array.isArray(parsed.features)
+      ) {
+        for (const feature of parsed.features) {
+          if (feature?.properties?.geo_level) {
+            features.push(feature);
+          }
+        }
+      } else if (parsed.type === "Feature" && parsed?.properties?.geo_level) {
+        features.push(parsed);
+      }
+    } catch (_) {
+      // Ignore invalid top-level chunks and continue scanning.
+    }
+  }
+
   return features;
 }
 
@@ -183,6 +262,7 @@ function repairJson(rawText, filePath) {
     const candidate = rawText.slice(match.index);
     try {
       const parsedCandidate = JSON.parse(candidate);
+
       if (
         leading &&
         leading.endIndex <= match.index &&
@@ -190,23 +270,29 @@ function repairJson(rawText, filePath) {
       ) {
         try {
           const leadingObject = JSON.parse(leading.objectText);
-          if (leadingObject && leadingObject.type === "Feature") {
+          if (leadingObject?.type === "Feature") {
             return {
               type: "FeatureCollection",
               features: [leadingObject, ...parsedCandidate.features],
             };
           }
-        } catch (error) {
-          // fall through to candidate-only repair
-        }
+        } catch (_) {}
       }
+
       return parsedCandidate;
-    } catch (error) {
-      // proceed to geo_level fallback
-    }
+    } catch (_) {}
+  }
+
+  const topLevelFeatures = extractFeaturesFromTopLevelObjects(rawText);
+  if (topLevelFeatures.length > 0) {
+    return {
+      type: "FeatureCollection",
+      features: topLevelFeatures,
+    };
   }
 
   const featureObjects = extractFeatureObjects(rawText);
+
   if (featureObjects.length > 0) {
     return {
       type: "FeatureCollection",
@@ -214,122 +300,91 @@ function repairJson(rawText, filePath) {
     };
   }
 
-  throw new Error(
-    `Invalid JSON in ${filePath}: no FeatureCollection and no feature objects with geo_level were found.`,
-  );
+  throw new Error(`Invalid JSON in ${filePath}`);
 }
 
-function fixGeoJson(obj) {
-  if (!obj || typeof obj !== "object") {
-    return obj;
-  }
-
-  if (obj.type === "FeatureColletion") {
-    obj.type = "FeatureCollection";
-  }
-
-  for (const key of Object.keys(obj)) {
-    obj[key] = fixGeoJson(obj[key]);
-  }
-
-  if (
-    obj.type === "FeatureCollection" &&
-    obj.features &&
-    !Array.isArray(obj.features)
-  ) {
-    obj.features = [obj.features];
-  }
-
-  return obj;
+function getFeatureLevel(feature) {
+  return String(feature?.properties?.geo_level || "");
 }
 
-function normalizeElement(element) {
-  if (Array.isArray(element)) {
-    return element.map(normalizeElement);
-  }
-
-  if (element === null || typeof element !== "object") {
-    return element;
-  }
-
-  const preserved = {};
-  if (element.type !== undefined) {
-    preserved.type = element.type;
-  }
-
-  if (element.geometry !== undefined) {
-    preserved.geometry = normalizeElement(element.geometry);
-  }
-
-  if (element.properties !== undefined) {
-    preserved.properties = normalizeElement(element.properties);
-  }
-
-  if (element.id !== undefined) {
-    preserved.id = element.id;
-  }
-
-  for (const key of Object.keys(element)) {
-    if (["type", "geometry", "properties", "id"].includes(key)) {
-      continue;
-    }
-    preserved[key] = normalizeElement(element[key]);
-  }
-
-  return preserved;
+function getFeatureAdm3Psgc(feature) {
+  return feature?.properties?.adm3_psgc;
 }
 
-function sortFeatures(features) {
-  const cityMunLevels = new Set(["Mun", "City"]);
+function normalizeFeature(feature) {
+  if (!feature || typeof feature !== "object") {
+    return null;
+  }
+
+  const level = getFeatureLevel(feature);
+  if (!ALLOWED_GEO_LEVELS.has(level)) {
+    return null;
+  }
+
+  const properties =
+    feature.properties && typeof feature.properties === "object"
+      ? feature.properties
+      : {};
+  const fallbackId =
+    level === "Bgy" ? properties.adm4_psgc : properties.adm3_psgc;
+
+  return {
+    type: "Feature",
+    geometry: feature.geometry || null,
+    properties,
+    id: feature.id ?? fallbackId ?? null,
+  };
+}
+
+function sortAndConsolidateFeatures(features) {
   const cityMun = [];
   const barangays = [];
-  const others = [];
 
   for (const feature of features) {
-    const level = feature?.properties?.geo_level;
-    if (cityMunLevels.has(level)) {
+    const level = getFeatureLevel(feature);
+    if (level === "Mun" || level === "City") {
       cityMun.push(feature);
     } else if (level === "Bgy") {
       barangays.push(feature);
-    } else {
-      others.push(feature);
     }
   }
 
-  return [...cityMun, ...barangays, ...others];
+  const anchorAdm3 = getFeatureAdm3Psgc(cityMun[0]);
+  const scopedCityMun =
+    anchorAdm3 === undefined
+      ? cityMun
+      : cityMun.filter((feature) => getFeatureAdm3Psgc(feature) === anchorAdm3);
+  const scopedBarangays =
+    anchorAdm3 === undefined
+      ? barangays
+      : barangays.filter(
+          (feature) => getFeatureAdm3Psgc(feature) === anchorAdm3,
+        );
+
+  return [...scopedCityMun, ...scopedBarangays];
 }
 
 function normalizeGeoJson(data) {
-  data = fixGeoJson(data);
+  let features = [];
 
-  if (data && typeof data === "object" && data.type === "Feature") {
-    return {
-      type: "FeatureCollection",
-      features: [normalizeElement(data)],
-    };
+  if (Array.isArray(data)) {
+    features = data.flatMap((item) => {
+      if (item.type === "FeatureCollection") return item.features || [];
+      if (item.type === "Feature") return [item];
+      return [];
+    });
+  } else if (data?.type === "FeatureCollection") {
+    features = data.features || [];
+  } else if (data?.type === "Feature") {
+    features = [data];
   }
 
-  if (data && typeof data === "object" && data.type === "FeatureCollection") {
-    const features = Array.isArray(data.features)
-      ? data.features.map(normalizeElement)
-      : [];
+  features = features.map(normalizeFeature).filter(Boolean);
 
-    return {
-      ...data,
-      features: sortFeatures(features),
-    };
-  }
-
-  if (data && typeof data === "object" && Array.isArray(data.features)) {
-    const features = data.features.map(normalizeElement);
-    return {
-      ...data,
-      type: "FeatureCollection",
-      features: sortFeatures(features),
-    };
-  }
-
-  return data;
+  return {
+    type: "FeatureCollection",
+    features: sortAndConsolidateFeatures(features),
+  };
 }
 
 function formatJson(data) {
@@ -337,8 +392,7 @@ function formatJson(data) {
 }
 
 function getOutputPath(filePath) {
-  const relativePath = path.relative(rootDir, filePath);
-  return path.join(rootDir, "formatted", relativePath);
+  return path.join(rootDir, "formatted", filePath);
 }
 
 function writeFormattedFile(filePath, content) {
@@ -350,10 +404,6 @@ function writeFormattedFile(filePath, content) {
 
 function run() {
   const files = collectJsonFiles(pathsToScan);
-  if (files.length === 0) {
-    console.error("No JSON files found to format.");
-    process.exit(1);
-  }
 
   let fixedCount = 0;
   let failedCount = 0;
@@ -361,16 +411,18 @@ function run() {
   for (const filePath of files) {
     const relativePath = path.relative(rootDir, filePath);
     const trimmedPath = relativePath.replace(/^unfiltered[\/\\]/, "");
+
     try {
       const rawText = fs.readFileSync(filePath, "utf8");
       const data = parseJson(rawText, trimmedPath);
       const normalized = normalizeGeoJson(data);
       const formatted = formatJson(normalized);
       const outputPath = writeFormattedFile(trimmedPath, formatted);
-      fixedCount += 1;
+
+      fixedCount++;
       console.log(`WRITTEN: ${path.relative(rootDir, outputPath)}`);
     } catch (error) {
-      failedCount += 1;
+      failedCount++;
       console.error(`FAILED: ${relativePath}`);
       console.error(`  ${error.message}`);
     }
@@ -378,8 +430,9 @@ function run() {
 
   console.log("---");
   console.log(
-    `Processed ${files.length} JSON file(s): ${fixedCount} written, ${failedCount} failed`,
+    `Processed ${files.length}: ${fixedCount} written, ${failedCount} failed`,
   );
+
   process.exit(failedCount > 0 ? 2 : 0);
 }
 

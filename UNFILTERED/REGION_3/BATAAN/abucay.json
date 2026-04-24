@@ -419,9 +419,8 @@
       },
       "id": 300801000
 },
-{
-  "type": "FeatureCollection",
-  "features": [
+
+ [
     {
       "type": "Feature",
       "geometry": {
@@ -1268,4 +1267,3 @@
       "id": 300801011
     }
   ]
-}
