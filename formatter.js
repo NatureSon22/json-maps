@@ -322,6 +322,30 @@ function normalizeGeoLevel(value) {
   return GEO_LEVEL_MAP[key] || null;
 }
 
+function collectStandardFeatures(data) {
+  if (data?.type === "FeatureCollection" && Array.isArray(data.features)) {
+    return data.features;
+  }
+
+  if (data?.type === "Feature") {
+    return [data];
+  }
+
+  if (Array.isArray(data)) {
+    return data.flatMap((item) => {
+      if (item?.type === "FeatureCollection" && Array.isArray(item.features)) {
+        return item.features;
+      }
+      if (item?.type === "Feature") {
+        return [item];
+      }
+      return [];
+    });
+  }
+
+  return [];
+}
+
 function extractFeaturesDeep(node, output = []) {
   if (Array.isArray(node)) {
     for (const item of node) {
@@ -418,10 +442,11 @@ function sortAndConsolidateFeatures(features) {
 }
 
 function normalizeGeoJson(data) {
-  let features = extractFeaturesDeep(data);
+  // Trust already-correct GeoJSON structure first; only use deep scan as recovery fallback.
+  let features = collectStandardFeatures(data);
 
-  if (!features.length && Array.isArray(data)) {
-    features = data.flatMap((item) => extractFeaturesDeep(item));
+  if (!features.length) {
+    features = extractFeaturesDeep(data);
   }
 
   features = features.map(normalizeFeature).filter(Boolean);

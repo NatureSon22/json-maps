@@ -5,6 +5,7 @@ const Table = require("cli-table3");
 
 const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
+const unfilteredDir = path.join(rootDir, "unfiltered");
 const dataDir = path.join(rootDir, "data");
 const formattedFolderAllowlist = [
   // "ncr",
@@ -19,6 +20,13 @@ const locationNoiseWords = new Set([
   "of",
   "the",
 ]);
+const nameTokenAliases = {
+  sto: "santo",
+  sta: "santa",
+  st: "san",
+  baliwag: "baliuag",
+  bulacan: "bulakan",
+};
 
 function normalizeText(value) {
   if (value === undefined || value === null) {
@@ -48,6 +56,38 @@ function tokenizeText(value) {
 
 function getMeaningfulNameTokens(value) {
   return tokenizeText(value).filter((token) => !locationNoiseWords.has(token));
+}
+
+function normalizeNameTokens(value, options = {}) {
+  const { stripYears = false } = options;
+  return tokenizeText(value)
+    .map((token) => nameTokenAliases[token] || token)
+    .filter((token) => !locationNoiseWords.has(token))
+    .filter((token) => !(stripYears && /^\d{4}$/.test(token)));
+}
+
+function namesLikelyMatch(leftValue, rightValue) {
+  const left = normalizeText(leftValue);
+  const right = normalizeText(rightValue);
+
+  if (
+    left.length > 0 &&
+    right.length > 0 &&
+    (left.includes(right) || right.includes(left))
+  ) {
+    return true;
+  }
+
+  const leftTokens = normalizeNameTokens(leftValue, { stripYears: true });
+  const rightTokens = normalizeNameTokens(rightValue, { stripYears: true });
+  if (!leftTokens.length || !rightTokens.length) {
+    return false;
+  }
+
+  return (
+    hasTokenSubset(leftTokens, rightTokens) ||
+    hasTokenSubset(rightTokens, leftTokens)
+  );
 }
 
 function hasTokenSubset(leftTokens, rightTokens) {
@@ -161,6 +201,18 @@ function getSourceKeyFromPath(filePath) {
   return segments[0].toLowerCase();
 }
 
+function getFormattedProvinceFromPath(filePath) {
+  const relative = path.relative(formattedDir, filePath);
+  const segments = relative.split(path.sep);
+  return String(segments[1] || "");
+}
+
+function getTopFolderKey(baseDir, filePath) {
+  const relative = path.relative(baseDir, filePath);
+  const segments = relative.split(path.sep);
+  return String(segments[0] || "").toLowerCase();
+}
+
 function resolveSourceArray(sourceData, sourceKey) {
   function pickArrayFromObject(obj, keyToMatch) {
     if (!obj || typeof obj !== "object") {
@@ -215,7 +267,34 @@ function getRecordName(record) {
 }
 
 function getRecordBarangayCount(record) {
-  return Number(record.noOfBarangays ?? record.no_of_brgy ?? 0);
+  return Number(
+    record.noOfBarangays ??
+      record.noOfBrgy ??
+      record.no_of_brgy ??
+      record.no_of_barangays ??
+      0,
+  );
+}
+
+function getRecordProvinceId(record) {
+  const candidate =
+    record?.provinceId ?? record?.province_id ?? record?.provinceid;
+  const numeric = Number(candidate);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getProvinceIdByName(sourceData, provinceName) {
+  if (!provinceName || !sourceData || !Array.isArray(sourceData.provinces)) {
+    return null;
+  }
+
+  const normalizedProvince = normalizeText(provinceName);
+  const match = sourceData.provinces.find(
+    (province) => normalizeText(province?.name) === normalizedProvince,
+  );
+
+  const numeric = Number(match?.id);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function getProvinceNameById(sourceData, provinceId) {
@@ -274,16 +353,37 @@ function getRecordProvince(record, sourceData, sourceKey) {
   return sourceKey;
 }
 
+function getRecordYear(record, sourceKey, unfilteredFileIndex) {
+  const name = getRecordName(record);
+  if (/(?:^|\D)2019(?:\D|$)/.test(name)) {
+    return "2019";
+  }
+
+  if (!normalizeText(name)) {
+    return "";
+  }
+
+  const fileNames = unfilteredFileIndex[sourceKey] || [];
+  const matchedFileName = fileNames.find((fileBase) =>
+    namesLikelyMatch(name, fileBase),
+  );
+
+  return matchedFileName && /(?:^|\D)2019(?:\D|$)/i.test(matchedFileName)
+    ? "2019"
+    : "";
+}
+
 function hasMatchingFormattedFile(record, formattedSet) {
-  const expectedKey = normalizeText(getRecordName(record));
-  if (!expectedKey || !formattedSet || formattedSet.size === 0) {
+  const expectedName = getRecordName(record);
+  if (
+    !normalizeText(expectedName) ||
+    !formattedSet ||
+    formattedSet.size === 0
+  ) {
     return false;
   }
-  return Array.from(formattedSet).some(
-    (normalized) =>
-      normalized === expectedKey ||
-      normalized.includes(expectedKey) ||
-      expectedKey.includes(normalized),
+  return Array.from(formattedSet).some((normalizedFileBase) =>
+    namesLikelyMatch(expectedName, normalizedFileBase),
   );
 }
 
@@ -301,9 +401,52 @@ function buildFormattedIndex(jsonFiles) {
   return index;
 }
 
-function findSourceRecord(sourceArray, fileBase, firstFeature) {
+function buildFormattedProvinceIndex(jsonFiles) {
+  const index = {};
+
+  for (const filePath of jsonFiles) {
+    const sourceKey = getSourceKeyFromPath(filePath);
+    const provinceKey = normalizeText(getFormattedProvinceFromPath(filePath));
+    const fileBase = path.basename(filePath, ".json");
+    const normalizedBase = normalizeText(fileBase);
+
+    if (!index[sourceKey]) {
+      index[sourceKey] = {};
+    }
+    if (!index[sourceKey][provinceKey]) {
+      index[sourceKey][provinceKey] = new Set();
+    }
+
+    index[sourceKey][provinceKey].add(normalizedBase);
+  }
+
+  return index;
+}
+
+function buildFileNameIndex(jsonFiles, baseDir) {
+  const index = {};
+  for (const filePath of jsonFiles) {
+    const sourceKey = getTopFolderKey(baseDir, filePath);
+    const fileBase = path.basename(filePath, ".json");
+    if (!index[sourceKey]) {
+      index[sourceKey] = [];
+    }
+    index[sourceKey].push(fileBase);
+  }
+  return index;
+}
+
+function findSourceRecord(sourceArray, fileBase, firstFeature, provinceIdHint) {
+  const sourceCandidates =
+    provinceIdHint === null
+      ? sourceArray
+      : sourceArray.filter(
+          (record) => getRecordProvinceId(record) === provinceIdHint,
+        );
+  const recordsToMatch = sourceCandidates.length > 0 ? sourceCandidates : sourceArray;
+
   const fileKey = normalizeText(fileBase);
-  const candidate = sourceArray.find((record) => {
+  const candidate = recordsToMatch.find((record) => {
     const cityKey = normalizeText(getRecordName(record));
     return (
       cityKey === fileKey ||
@@ -315,7 +458,7 @@ function findSourceRecord(sourceArray, fileBase, firstFeature) {
     return candidate;
   }
   const adm3Value = normalizeText(firstFeature?.properties?.adm3_en);
-  return sourceArray.find((record) => {
+  return recordsToMatch.find((record) => {
     const cityKey = normalizeText(getRecordName(record));
     return (
       cityKey === adm3Value ||
@@ -365,10 +508,17 @@ function validateFile(filePath, sources, chalk) {
   }
 
   const firstFeature = features[0];
+  const formattedProvince = getFormattedProvinceFromPath(filePath);
+  const provinceIdHint = getProvinceIdByName(sourceData, formattedProvince);
   const actualGeoLevel = String(firstFeature?.properties?.geo_level || "");
   const geoLevelAllowed = firstLevelAllowlist.has(actualGeoLevel.toLowerCase());
 
-  const sourceRecord = findSourceRecord(dataArray, fileBase, firstFeature);
+  const sourceRecord = findSourceRecord(
+    dataArray,
+    fileBase,
+    firstFeature,
+    provinceIdHint,
+  );
   if (!sourceRecord) {
     return {
       passed: false,
@@ -462,6 +612,12 @@ async function main() {
     collectJsonFiles(rootPath),
   );
   const formattedIndex = buildFormattedIndex(jsonFiles);
+  const formattedProvinceIndex = buildFormattedProvinceIndex(jsonFiles);
+  const unfilteredFiles = collectJsonFiles(unfilteredDir);
+  const unfilteredFileIndex = buildFileNameIndex(
+    unfilteredFiles,
+    unfilteredDir,
+  );
 
   if (!jsonFiles.length) {
     console.error(chalk.red("No JSON files found in the formatted folder."));
@@ -513,10 +669,17 @@ async function main() {
       if (!record || !getRecordName(record)) {
         continue;
       }
-      if (!hasMatchingFormattedFile(record, formattedSet)) {
+
+      const provinceName = getRecordProvince(record, sourceData, sourceKey);
+      const provinceKey = normalizeText(provinceName);
+      const provinceSet = formattedProvinceIndex[sourceKey]?.[provinceKey];
+      const lookupSet = provinceSet && provinceSet.size > 0 ? provinceSet : formattedSet;
+
+      if (!hasMatchingFormattedFile(record, lookupSet)) {
         missingFiles.push({
           source: sourceKey,
-          province: getRecordProvince(record, sourceData, sourceKey),
+          province: provinceName,
+          year: getRecordYear(record, sourceKey, unfilteredFileIndex),
           expected: getRecordName(record),
         });
       }
@@ -568,16 +731,18 @@ async function main() {
       head: [
         chalk.whiteBright("Source"),
         chalk.whiteBright("Province"),
+        chalk.whiteBright("Year"),
         chalk.whiteBright("Missing City/Muni"),
       ],
       style: { head: ["yellow"] },
-      colWidths: [18, 22, 48],
+      colWidths: [16, 20, 8, 44],
       wordWrap: true,
     });
     missingFiles.forEach((item) =>
       missingTable.push([
         chalk.yellow(item.source),
         chalk.yellow(item.province || "-"),
+        chalk.yellow(item.year || ""),
         chalk.yellow(item.expected),
       ]),
     );
