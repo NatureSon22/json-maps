@@ -7,7 +7,8 @@ const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const dataDir = path.join(rootDir, "data");
 const formattedFolderAllowlist = [
-  "region_3",
+  // "ncr",  
+  // "region_3",
   "region_4_A",
 ];
 const firstLevelAllowlist = new Set(["city", "mun"]);
@@ -278,6 +279,7 @@ function validateFile(filePath, sources, chalk) {
     return {
       passed: false,
       message: `No source-of-truth data found for folder '${sourceKey}'.`,
+      cityMuni: "",
     };
   }
 
@@ -286,6 +288,7 @@ function validateFile(filePath, sources, chalk) {
     return {
       passed: false,
       message: `Source-of-truth data for '${sourceKey}' is empty or invalid.`,
+      cityMuni: "",
     };
   }
 
@@ -301,6 +304,7 @@ function validateFile(filePath, sources, chalk) {
     return {
       passed: false,
       message: "No features found in formatted JSON file.",
+      cityMuni: "",
     };
   }
 
@@ -313,6 +317,7 @@ function validateFile(filePath, sources, chalk) {
     return {
       passed: false,
       message: `Unable to resolve expected city record for '${fileBase}'.`,
+      cityMuni: "",
       regionId: firstFeature?.properties?.adm2_psgc || "",
       provinceId: firstFeature?.properties?.adm3_psgc || "",
     };
@@ -363,6 +368,7 @@ function validateFile(filePath, sources, chalk) {
   return {
     passed: false,
     message: failures.join(" "),
+    cityMuni: adm3Matches ? expectedCity : "",
     regionId: firstFeature?.properties?.adm2_psgc || "",
     provinceId: firstFeature?.properties?.adm3_psgc || "",
   };
@@ -421,6 +427,7 @@ async function main() {
     } else {
       failedFiles.push({
         file: relativePath,
+        cityMuni: result.cityMuni || "",
         reason: result.message,
         regionId: result.regionId || "-",
         provinceId: result.provinceId || "-",
@@ -435,7 +442,15 @@ async function main() {
   console.log("---");
   console.log();
 
+  const allowedSourceKeys = new Set(
+    formattedFolderAllowlist.map((folder) => normalizeText(folder)),
+  );
+
   for (const [sourceKey, sourceData] of Object.entries(sources)) {
+    if (!allowedSourceKeys.has(normalizeText(sourceKey))) {
+      continue;
+    }
+
     const dataArray = resolveSourceArray(sourceData, sourceKey);
     const formattedSet = formattedIndex[sourceKey] || new Set();
     for (const record of dataArray) {
@@ -468,17 +483,19 @@ async function main() {
     const failTable = new Table({
       head: [
         chalk.whiteBright("Failed File"),
+        chalk.whiteBright("Muni/City"),
         chalk.whiteBright("Region ID"),
         chalk.whiteBright("Province ID"),
         chalk.whiteBright("Reason"),
       ],
       style: { head: ["red"] },
-      colWidths: [40, 15, 15, 30],
+      colWidths: [90, 22, 15, 15, 30],
       wordWrap: true,
     });
     failedFiles.forEach((item) =>
       failTable.push([
         chalk.red(item.file),
+        chalk.yellow(item.cityMuni || ""),
         chalk.yellow(item.regionId ? `"adm2_psgc": ${item.regionId}` : "-"),
         chalk.yellow(item.provinceId ? `"adm3_psgc": ${item.provinceId}` : "-"),
         chalk.yellow(item.reason),
