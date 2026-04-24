@@ -61,7 +61,7 @@ const data = {
     { id: 24, provinceId: 2, districtId: 5, name: "balagtas", noOfBrgy: 9 },
     { id: 25, provinceId: 2, districtId: 2, name: "baliwag", noOfBrgy: 27 },
     { id: 26, provinceId: 2, districtId: 5, name: "bocaue", noOfBrgy: 19 },
-    { id: 27, provinceId: 2, districtId: 1, name: "bulakan", noOfBrgy: 14 },
+    { id: 27, provinceId: 2, districtId: 1, name: "bulacan", noOfBrgy: 14 },
     { id: 28, provinceId: 2, districtId: 2, name: "bustos", noOfBrgy: 14 },
     { id: 29, provinceId: 2, districtId: 1, name: "calumpit", noOfBrgy: 29 },
     {

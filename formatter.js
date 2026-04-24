@@ -3,12 +3,8 @@ const path = require("path");
 
 const rootDir = process.cwd();
 const inputPaths = process.argv.slice(2);
-const folders = [
-  "unfiltered/region_3",
-  // "unfiltered/NCR",
-  // "unfiltered/region_4_A",
-];
-const pathsToScan = inputPaths.length ? inputPaths : folders;
+const defaultScanPaths = [path.join(rootDir, "unfiltered")];
+const pathsToScan = inputPaths.length ? inputPaths : defaultScanPaths;
 
 const FEATURE_COLLECTION_REGEX = /{"type"\s*:\s*"FeatureCollection"/;
 
@@ -441,7 +437,36 @@ function sortAndConsolidateFeatures(features) {
   return [...scopedCityMun, ...scopedBarangays];
 }
 
-function normalizeGeoJson(data) {
+function buildSyntheticParentFeature(features, filePath) {
+  const firstBgy = features.find(
+    (feature) => getFeatureLevel(feature) === "Bgy",
+  );
+  if (!firstBgy) {
+    return null;
+  }
+
+  const fileBase = path.basename(filePath, ".json");
+  const adm3Value = firstBgy?.properties?.adm3_en;
+  const cityName = adm3Value || fileBase.replace(/[_\-]2019$/i, "");
+  const isCity = /city|ci\b/i.test(cityName);
+
+  const properties = {
+    ...firstBgy.properties,
+    adm3_en: String(adm3Value || cityName).trim(),
+    geo_level: isCity ? "City" : "Mun",
+  };
+
+  const id = firstBgy?.properties?.adm3_psgc ?? firstBgy?.id ?? null;
+
+  return {
+    type: "Feature",
+    geometry: firstBgy.geometry || null,
+    properties,
+    id,
+  };
+}
+
+function normalizeGeoJson(data, filePath) {
   // Trust already-correct GeoJSON structure first; only use deep scan as recovery fallback.
   let features = collectStandardFeatures(data);
 
@@ -450,6 +475,21 @@ function normalizeGeoJson(data) {
   }
 
   features = features.map(normalizeFeature).filter(Boolean);
+
+  const hasParent = features.some(
+    (feature) =>
+      getFeatureLevel(feature) === "City" || getFeatureLevel(feature) === "Mun",
+  );
+
+  if (
+    !hasParent &&
+    features.some((feature) => getFeatureLevel(feature) === "Bgy")
+  ) {
+    const synthetic = buildSyntheticParentFeature(features, filePath);
+    if (synthetic) {
+      features = [synthetic, ...features];
+    }
+  }
 
   return {
     type: "FeatureCollection",
@@ -485,7 +525,7 @@ function run() {
     try {
       const rawText = fs.readFileSync(filePath, "utf8");
       const data = parseJson(rawText, trimmedPath);
-      const normalized = normalizeGeoJson(data);
+      const normalized = normalizeGeoJson(data, trimmedPath);
       const formatted = formatJson(normalized);
       const outputPath = writeFormattedFile(trimmedPath, formatted);
 

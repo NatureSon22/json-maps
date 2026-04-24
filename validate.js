@@ -7,11 +7,7 @@ const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const unfilteredDir = path.join(rootDir, "unfiltered");
 const dataDir = path.join(rootDir, "data");
-const formattedFolderAllowlist = [
-  // "ncr",
-  "region_3",
-  // "region_4_A",
-];
+const formattedFolderAllowlist = [];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
   "city",
@@ -61,19 +57,84 @@ function getMeaningfulNameTokens(value) {
 function normalizeNameTokens(value, options = {}) {
   const { stripYears = false } = options;
   return tokenizeText(value)
-    .map((token) => nameTokenAliases[token] || token)
+    .map((token) => {
+      // Handle normalized file names like "olongapo2019" where year is glued.
+      const withoutYear = stripYears
+        ? token.replace(/(?:19|20)\d{2}$/i, "")
+        : token;
+      return nameTokenAliases[withoutYear] || withoutYear;
+    })
     .filter((token) => !locationNoiseWords.has(token))
+    .filter(Boolean)
     .filter((token) => !(stripYears && /^\d{4}$/.test(token)));
+}
+
+function stripYearSuffix(value) {
+  return String(value)
+    .replace(/[_\-\s]*(?:19|20)\d{2}$/i, "")
+    .replace(/\d{4}$/, "");
+}
+
+function editDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= n; j += 1) dp[0][j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+function isCloseNameMatch(leftValue, rightValue) {
+  const left = normalizeText(stripYearSuffix(leftValue));
+  const right = normalizeText(stripYearSuffix(rightValue));
+  if (!left || !right) return false;
+
+  if (editDistance(left, right) <= 1) {
+    return true;
+  }
+
+  const leftTokens = normalizeNameTokens(leftValue, { stripYears: true });
+  const rightTokens = normalizeNameTokens(rightValue, { stripYears: true });
+  if (!leftTokens.length || !rightTokens.length) return false;
+
+  if (leftTokens.length !== rightTokens.length) return false;
+
+  for (const token of leftTokens) {
+    if (!rightTokens.some((candidate) => editDistance(token, candidate) <= 1)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function namesLikelyMatch(leftValue, rightValue) {
   const left = normalizeText(leftValue);
   const right = normalizeText(rightValue);
+  const leftStripped = normalizeText(stripYearSuffix(leftValue));
+  const rightStripped = normalizeText(stripYearSuffix(rightValue));
 
   if (
     left.length > 0 &&
     right.length > 0 &&
     (left.includes(right) || right.includes(left))
+  ) {
+    return true;
+  }
+
+  if (
+    leftStripped.length > 0 &&
+    rightStripped.length > 0 &&
+    (leftStripped.includes(rightStripped) ||
+      rightStripped.includes(leftStripped))
   ) {
     return true;
   }
@@ -86,7 +147,8 @@ function namesLikelyMatch(leftValue, rightValue) {
 
   return (
     hasTokenSubset(leftTokens, rightTokens) ||
-    hasTokenSubset(rightTokens, leftTokens)
+    hasTokenSubset(rightTokens, leftTokens) ||
+    isCloseNameMatch(leftValue, rightValue)
   );
 }
 
@@ -262,10 +324,6 @@ function resolveSourceArray(sourceData, sourceKey) {
   return [];
 }
 
-function getRecordName(record) {
-  return String(record.cityMuni || record.name || "");
-}
-
 function getRecordBarangayCount(record) {
   return Number(
     record.noOfBarangays ??
@@ -351,6 +409,12 @@ function getRecordProvince(record, sourceData, sourceKey) {
   }
 
   return sourceKey;
+}
+
+function getRecordName(record) {
+  return String(
+    record.cityMuni || record.name || record.city || record.municipality || "",
+  );
 }
 
 function getRecordYear(record, sourceKey, unfilteredFileIndex) {
@@ -605,10 +669,11 @@ function makeSummaryLabel(
   );
 }
 
-async function main() {
+async function main(rootPaths = []) {
   const { default: chalk } = await import("chalk");
   const sources = loadDataSources();
-  const validationRoots = getValidationRoots();
+  const validationRoots =
+    rootPaths.length > 0 ? rootPaths : getValidationRoots();
   const jsonFiles = validationRoots.flatMap((rootPath) =>
     collectJsonFiles(rootPath),
   );
@@ -655,9 +720,16 @@ async function main() {
   console.log("---");
   console.log();
 
-  const allowedSourceKeys = new Set(
-    formattedFolderAllowlist.map((folder) => normalizeText(folder)),
+  const selectedSourceKeys = new Set(
+    Object.keys(formattedIndex).map((sourceKey) => normalizeText(sourceKey)),
   );
+  const allowedSourceKeys = formattedFolderAllowlist.length
+    ? new Set(formattedFolderAllowlist.map((folder) => normalizeText(folder)))
+    : selectedSourceKeys.size
+      ? selectedSourceKeys
+      : new Set(
+          Object.keys(sources).map((sourceKey) => normalizeText(sourceKey)),
+        );
 
   for (const [sourceKey, sourceData] of Object.entries(sources)) {
     if (!allowedSourceKeys.has(normalizeText(sourceKey))) {
@@ -666,6 +738,9 @@ async function main() {
 
     const dataArray = resolveSourceArray(sourceData, sourceKey);
     const formattedSet = formattedIndex[sourceKey] || new Set();
+    const allowedProvinceKeys = formattedProvinceIndex[sourceKey]
+      ? new Set(Object.keys(formattedProvinceIndex[sourceKey]))
+      : null;
     for (const record of dataArray) {
       if (!record || !getRecordName(record)) {
         continue;
@@ -673,6 +748,9 @@ async function main() {
 
       const provinceName = getRecordProvince(record, sourceData, sourceKey);
       const provinceKey = normalizeText(provinceName);
+      if (allowedProvinceKeys && !allowedProvinceKeys.has(provinceKey)) {
+        continue;
+      }
       const provinceSet = formattedProvinceIndex[sourceKey]?.[provinceKey];
       const lookupSet =
         provinceSet && provinceSet.size > 0 ? provinceSet : formattedSet;
@@ -779,7 +857,28 @@ async function main() {
   process.exit(failedFiles.length > 0 || missingFiles.length > 0 ? 1 : 0);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(2);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(2);
+  });
+}
+
+module.exports = {
+  collectJsonFiles,
+  loadDataSources,
+  resolveSourceArray,
+  getSourceKeyFromPath,
+  validateFile,
+  getValidationRoots,
+  buildFormattedIndex,
+  buildFormattedProvinceIndex,
+  buildFileNameIndex,
+  getRecordName,
+  getRecordBarangayCount,
+  getRecordProvince,
+  getRecordProvinceId,
+  getProvinceIdByName,
+  getProvinceNameById,
+  main,
+};
