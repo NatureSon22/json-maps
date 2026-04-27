@@ -514,6 +514,55 @@ function buildFileNameIndex(jsonFiles, baseDir) {
   return index;
 }
 
+function buildUnfilteredFileEntries(jsonFiles, baseDir) {
+  const entries = [];
+
+  for (const filePath of jsonFiles) {
+    const sourceKey = getTopFolderKey(baseDir, filePath);
+    const relativePath = path
+      .relative(baseDir, filePath)
+      .split(path.sep)
+      .join("/");
+    const segments = relativePath.split("/");
+    const provinceKey = normalizeText(segments[1] || "");
+
+    entries.push({
+      sourceKey,
+      provinceKey,
+      fileBase: path.basename(filePath, ".json"),
+      relativePath,
+    });
+  }
+
+  return entries;
+}
+
+function findUnfilteredMatchesForMunicipality(
+  unfilteredEntries,
+  sourceKey,
+  provinceName,
+  municipalityName,
+) {
+  const targetProvinceKey = normalizeText(provinceName || "");
+
+  const sameSource = unfilteredEntries.filter(
+    (entry) => entry.sourceKey === sourceKey,
+  );
+  const sameProvince = targetProvinceKey
+    ? sameSource.filter((entry) => entry.provinceKey === targetProvinceKey)
+    : sameSource;
+  const searchPool = sameProvince.length > 0 ? sameProvince : sameSource;
+
+  return searchPool
+    .filter(
+      (entry) =>
+        isStrongNameMatch(entry.fileBase, municipalityName) ||
+        namesLikelyMatch(entry.fileBase, municipalityName),
+    )
+    .map((entry) => entry.relativePath)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 function findSourceRecord(sourceArray, fileBase, firstFeature, provinceIdHint) {
   const sourceCandidates =
     provinceIdHint === null
@@ -696,6 +745,10 @@ async function main(rootPaths = []) {
   const formattedProvinceIndex = buildFormattedProvinceIndex(jsonFiles);
   const unfilteredFiles = collectJsonFiles(unfilteredDir);
   const unfilteredFileIndex = buildFileNameIndex(
+    unfilteredFiles,
+    unfilteredDir,
+  );
+  const unfilteredEntries = buildUnfilteredFileEntries(
     unfilteredFiles,
     unfilteredDir,
   );
@@ -886,11 +939,29 @@ async function main(rootPaths = []) {
       continue;
     }
 
-    const [, ...extras] = groupedPassed;
+    const [primary, ...extras] = groupedPassed;
+    const primaryFile = inspectedFiles.find(
+      (item) => item.file === primary.file,
+    );
+
     for (const extra of extras) {
+      const extraFile = inspectedFiles.find((item) => item.file === extra.file);
+      const sourceKey = extraFile?.sourceKey || primaryFile?.sourceKey || "";
+      const provinceName =
+        extraFile?.provinceName || primaryFile?.provinceName || "";
+      const municipalityName =
+        extra.cityMuni || extraFile?.adm3Name || primary.cityMuni || "";
+      const unfilteredMatches = findUnfilteredMatchesForMunicipality(
+        unfilteredEntries,
+        sourceKey,
+        provinceName,
+        municipalityName,
+      );
+
       duplicatePassedOverlaps.push({
         file: extra.file,
-        municipality: extra.cityMuni,
+        municipality: municipalityName,
+        unfilteredMatches,
       });
     }
   }
@@ -994,9 +1065,10 @@ async function main(rootPaths = []) {
       head: [
         chalk.whiteBright("Duplicate Passed File"),
         chalk.whiteBright("Municipality"),
+        chalk.whiteBright("Unfiltered Matches"),
       ],
       style: { head: ["magenta"] },
-      colWidths: [42, 44],
+      colWidths: [40, 22, 46],
       wordWrap: true,
     });
 
@@ -1004,6 +1076,11 @@ async function main(rootPaths = []) {
       duplicatePassTable.push([
         chalk.magenta(item.file),
         chalk.magenta(item.municipality || ""),
+        chalk.magenta(
+          item.unfilteredMatches.length
+            ? item.unfilteredMatches.join("\n")
+            : "-",
+        ),
       ]),
     );
 
