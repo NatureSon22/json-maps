@@ -7,7 +7,11 @@ const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
 const unfilteredDir = path.join(rootDir, "unfiltered");
 const dataDir = path.join(rootDir, "data");
-const formattedFolderAllowlist = [];
+const formattedFolderAllowlist = [
+  // "ncr",
+  // "REGION_1",
+  // "region_4_A",
+];
 const firstLevelAllowlist = new Set(["city", "mun"]);
 const locationNoiseWords = new Set([
   "city",
@@ -17,6 +21,7 @@ const locationNoiseWords = new Set([
   "the",
 ]);
 const nameTokenAliases = {
+  gen: "general",
   sto: "santo",
   sta: "santa",
   st: "san",
@@ -43,6 +48,7 @@ function tokenizeText(value) {
   return String(value)
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
@@ -51,90 +57,50 @@ function tokenizeText(value) {
 }
 
 function getMeaningfulNameTokens(value) {
-  return tokenizeText(value).filter((token) => !locationNoiseWords.has(token));
+  return tokenizeText(value)
+    .map((token) => nameTokenAliases[token] || token)
+    .filter((token) => !locationNoiseWords.has(token));
 }
 
 function normalizeNameTokens(value, options = {}) {
   const { stripYears = false } = options;
   return tokenizeText(value)
-    .map((token) => {
-      // Handle normalized file names like "olongapo2019" where year is glued.
-      const withoutYear = stripYears
-        ? token.replace(/(?:19|20)\d{2}$/i, "")
-        : token;
-      return nameTokenAliases[withoutYear] || withoutYear;
-    })
+    .map((token) => nameTokenAliases[token] || token)
     .filter((token) => !locationNoiseWords.has(token))
-    .filter(Boolean)
     .filter((token) => !(stripYears && /^\d{4}$/.test(token)));
 }
 
-function stripYearSuffix(value) {
-  return String(value)
-    .replace(/[_\-\s]*(?:19|20)\d{2}$/i, "")
-    .replace(/\d{4}$/, "");
+function stripProvinceQualifier(value, provinceName) {
+  if (!value) {
+    return "";
+  }
+
+  const normalizedProvince = normalizeText(provinceName || "");
+  if (!normalizedProvince) {
+    return String(value);
+  }
+
+  return String(value).replace(/\(([^)]*)\)/g, (fullMatch, groupValue) => {
+    return normalizeText(groupValue) === normalizedProvince ? "" : fullMatch;
+  });
 }
 
-function editDistance(a, b) {
-  const m = a.length;
-  const n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i += 1) dp[i][0] = i;
-  for (let j = 0; j <= n; j += 1) dp[0][j] = j;
-  for (let i = 1; i <= m; i += 1) {
-    for (let j = 1; j <= n; j += 1) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
-      }
-    }
-  }
-  return dp[m][n];
-}
-
-function isCloseNameMatch(leftValue, rightValue) {
-  const left = normalizeText(stripYearSuffix(leftValue));
-  const right = normalizeText(stripYearSuffix(rightValue));
-  if (!left || !right) return false;
-
-  if (editDistance(left, right) <= 1) {
-    return true;
-  }
-
-  const leftTokens = normalizeNameTokens(leftValue, { stripYears: true });
-  const rightTokens = normalizeNameTokens(rightValue, { stripYears: true });
-  if (!leftTokens.length || !rightTokens.length) return false;
-
-  if (leftTokens.length !== rightTokens.length) return false;
-
-  for (const token of leftTokens) {
-    if (!rightTokens.some((candidate) => editDistance(token, candidate) <= 1)) {
-      return false;
-    }
-  }
-  return true;
+function getMunicipalityComparisonKey(name, provinceName) {
+  const withoutProvinceQualifier = stripProvinceQualifier(name, provinceName);
+  const tokens = normalizeNameTokens(withoutProvinceQualifier, {
+    stripYears: true,
+  });
+  return tokens.join("|");
 }
 
 function namesLikelyMatch(leftValue, rightValue) {
   const left = normalizeText(leftValue);
   const right = normalizeText(rightValue);
-  const leftStripped = normalizeText(stripYearSuffix(leftValue));
-  const rightStripped = normalizeText(stripYearSuffix(rightValue));
 
   if (
     left.length > 0 &&
     right.length > 0 &&
     (left.includes(right) || right.includes(left))
-  ) {
-    return true;
-  }
-
-  if (
-    leftStripped.length > 0 &&
-    rightStripped.length > 0 &&
-    (leftStripped.includes(rightStripped) ||
-      rightStripped.includes(leftStripped))
   ) {
     return true;
   }
@@ -147,9 +113,54 @@ function namesLikelyMatch(leftValue, rightValue) {
 
   return (
     hasTokenSubset(leftTokens, rightTokens) ||
-    hasTokenSubset(rightTokens, leftTokens) ||
-    isCloseNameMatch(leftValue, rightValue)
+    hasTokenSubset(rightTokens, leftTokens)
   );
+}
+
+function getTokenSignature(value) {
+  const tokens = normalizeNameTokens(value, { stripYears: true });
+  if (!tokens.length) {
+    return "";
+  }
+  return [...tokens].sort().join("|");
+}
+
+function isStrongNameMatch(leftValue, rightValue) {
+  const left = normalizeText(leftValue);
+  const right = normalizeText(rightValue);
+
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left === right) {
+    return true;
+  }
+
+  const leftSignature = getTokenSignature(leftValue);
+  const rightSignature = getTokenSignature(rightValue);
+  return !!leftSignature && leftSignature === rightSignature;
+}
+
+function pickUniqueMatch(candidates, getComparableName, targetName) {
+  if (!targetName) {
+    return null;
+  }
+
+  const strongMatches = candidates.filter((candidate) =>
+    isStrongNameMatch(getComparableName(candidate), targetName),
+  );
+  if (strongMatches.length === 1) {
+    return strongMatches[0];
+  }
+  if (strongMatches.length > 1) {
+    return null;
+  }
+
+  const looseMatches = candidates.filter((candidate) =>
+    namesLikelyMatch(getComparableName(candidate), targetName),
+  );
+  return looseMatches.length === 1 ? looseMatches[0] : null;
 }
 
 function hasTokenSubset(leftTokens, rightTokens) {
@@ -202,6 +213,7 @@ function collectJsonFiles(dir) {
       results.push(entryPath);
     }
   }
+
   return results;
 }
 
@@ -324,6 +336,10 @@ function resolveSourceArray(sourceData, sourceKey) {
   return [];
 }
 
+function getRecordName(record) {
+  return String(record.cityMuni || record.name || "");
+}
+
 function getRecordBarangayCount(record) {
   return Number(
     record.noOfBarangays ??
@@ -411,10 +427,8 @@ function getRecordProvince(record, sourceData, sourceKey) {
   return sourceKey;
 }
 
-function getRecordName(record) {
-  return String(
-    record.cityMuni || record.name || record.city || record.municipality || "",
-  );
+function getRelativeFileBase(filePath) {
+  return path.basename(filePath, ".json");
 }
 
 function getRecordYear(record, sourceKey, unfilteredFileIndex) {
@@ -446,8 +460,10 @@ function hasMatchingFormattedFile(record, formattedSet) {
   ) {
     return false;
   }
-  return Array.from(formattedSet).some((normalizedFileBase) =>
-    namesLikelyMatch(expectedName, normalizedFileBase),
+  return !!pickUniqueMatch(
+    Array.from(formattedSet),
+    (fileBase) => String(fileBase || ""),
+    expectedName,
   );
 }
 
@@ -456,11 +472,10 @@ function buildFormattedIndex(jsonFiles) {
   for (const filePath of jsonFiles) {
     const sourceKey = getSourceKeyFromPath(filePath);
     const fileBase = path.basename(filePath, ".json");
-    const normalizedBase = normalizeText(fileBase);
     if (!index[sourceKey]) {
       index[sourceKey] = new Set();
     }
-    index[sourceKey].add(normalizedBase);
+    index[sourceKey].add(fileBase);
   }
   return index;
 }
@@ -472,7 +487,6 @@ function buildFormattedProvinceIndex(jsonFiles) {
     const sourceKey = getSourceKeyFromPath(filePath);
     const provinceKey = normalizeText(getFormattedProvinceFromPath(filePath));
     const fileBase = path.basename(filePath, ".json");
-    const normalizedBase = normalizeText(fileBase);
 
     if (!index[sourceKey]) {
       index[sourceKey] = {};
@@ -481,7 +495,7 @@ function buildFormattedProvinceIndex(jsonFiles) {
       index[sourceKey][provinceKey] = new Set();
     }
 
-    index[sourceKey][provinceKey].add(normalizedBase);
+    index[sourceKey][provinceKey].add(fileBase);
   }
 
   return index;
@@ -507,30 +521,28 @@ function findSourceRecord(sourceArray, fileBase, firstFeature, provinceIdHint) {
       : sourceArray.filter(
           (record) => getRecordProvinceId(record) === provinceIdHint,
         );
-  const recordsToMatch =
-    sourceCandidates.length > 0 ? sourceCandidates : sourceArray;
+  const candidateSets = [];
 
-  const fileKey = normalizeText(fileBase);
-  const candidate = recordsToMatch.find((record) => {
-    const cityKey = normalizeText(getRecordName(record));
-    return (
-      cityKey === fileKey ||
-      cityKey.includes(fileKey) ||
-      fileKey.includes(cityKey)
-    );
-  });
-  if (candidate) {
-    return candidate;
+  if (sourceCandidates.length > 0) {
+    candidateSets.push(sourceCandidates);
   }
-  const adm3Value = normalizeText(firstFeature?.properties?.adm3_en);
-  return recordsToMatch.find((record) => {
-    const cityKey = normalizeText(getRecordName(record));
-    return (
-      cityKey === adm3Value ||
-      cityKey.includes(adm3Value) ||
-      adm3Value.includes(cityKey)
-    );
-  });
+  candidateSets.push(sourceArray);
+
+  const adm3Value = String(firstFeature?.properties?.adm3_en || "");
+
+  for (const recordsToMatch of candidateSets) {
+    const byFileBase = pickUniqueMatch(recordsToMatch, getRecordName, fileBase);
+    if (byFileBase) {
+      return byFileBase;
+    }
+
+    const byAdm3 = pickUniqueMatch(recordsToMatch, getRecordName, adm3Value);
+    if (byAdm3) {
+      return byAdm3;
+    }
+  }
+
+  return null;
 }
 
 function validateFile(filePath, sources, chalk) {
@@ -631,6 +643,8 @@ function validateFile(filePath, sources, chalk) {
     return {
       passed: true,
       message: `PASS ${relativeFile}`,
+      cityMuni: expectedCity,
+      adm3Name: actualAdm3,
       regionId: firstFeature?.properties?.adm2_psgc || "",
       provinceId: firstFeature?.properties?.adm3_psgc || "",
     };
@@ -640,6 +654,7 @@ function validateFile(filePath, sources, chalk) {
     passed: false,
     message: failures.join(" "),
     cityMuni: adm3Matches ? expectedCity : "",
+    adm3Name: actualAdm3,
     regionId: firstFeature?.properties?.adm2_psgc || "",
     provinceId: firstFeature?.properties?.adm3_psgc || "",
   };
@@ -693,19 +708,28 @@ async function main(rootPaths = []) {
   const passedFiles = [];
   const failedFiles = [];
   const missingFiles = [];
+  const inspectedFiles = [];
 
   for (const filePath of jsonFiles) {
     const result = validateFile(filePath, sources, chalk);
     const relativePath = path.relative(rootDir, filePath);
+    const sourceKey = getSourceKeyFromPath(filePath);
     const label = makeStatusLabel(result.passed, chalk);
 
     if (result.passed) {
-      passedFiles.push({ file: relativePath });
+      const fileBase = getRelativeFileBase(relativePath);
+      passedFiles.push({
+        file: relativePath,
+        base: fileBase,
+        cityMuni: result.cityMuni || "",
+        adm3Name: result.adm3Name || "",
+      });
       console.log(`${label} ${chalk.whiteBright.bold(relativePath)}`);
     } else {
       failedFiles.push({
         file: relativePath,
         cityMuni: result.cityMuni || "",
+        adm3Name: result.adm3Name || "",
         reason: result.message,
         regionId: result.regionId || "-",
         provinceId: result.provinceId || "-",
@@ -714,22 +738,25 @@ async function main(rootPaths = []) {
       console.log(chalk.bgBlack.white(`  ${result.message} `));
     }
 
+    inspectedFiles.push({
+      file: relativePath,
+      sourceKey,
+      provinceKey: normalizeText(getFormattedProvinceFromPath(filePath)),
+      provinceName: getFormattedProvinceFromPath(filePath),
+      adm3Name: result.adm3Name || "",
+      cityMuni: result.cityMuni || "",
+      passed: result.passed,
+    });
+
     console.log();
   }
 
   console.log("---");
   console.log();
 
-  const selectedSourceKeys = new Set(
-    Object.keys(formattedIndex).map((sourceKey) => normalizeText(sourceKey)),
+  const allowedSourceKeys = new Set(
+    formattedFolderAllowlist.map((folder) => normalizeText(folder)),
   );
-  const allowedSourceKeys = formattedFolderAllowlist.length
-    ? new Set(formattedFolderAllowlist.map((folder) => normalizeText(folder)))
-    : selectedSourceKeys.size
-      ? selectedSourceKeys
-      : new Set(
-          Object.keys(sources).map((sourceKey) => normalizeText(sourceKey)),
-        );
 
   for (const [sourceKey, sourceData] of Object.entries(sources)) {
     if (!allowedSourceKeys.has(normalizeText(sourceKey))) {
@@ -737,10 +764,6 @@ async function main(rootPaths = []) {
     }
 
     const dataArray = resolveSourceArray(sourceData, sourceKey);
-    const formattedSet = formattedIndex[sourceKey] || new Set();
-    const allowedProvinceKeys = formattedProvinceIndex[sourceKey]
-      ? new Set(Object.keys(formattedProvinceIndex[sourceKey]))
-      : null;
     for (const record of dataArray) {
       if (!record || !getRecordName(record)) {
         continue;
@@ -748,14 +771,25 @@ async function main(rootPaths = []) {
 
       const provinceName = getRecordProvince(record, sourceData, sourceKey);
       const provinceKey = normalizeText(provinceName);
-      if (allowedProvinceKeys && !allowedProvinceKeys.has(provinceKey)) {
-        continue;
-      }
-      const provinceSet = formattedProvinceIndex[sourceKey]?.[provinceKey];
-      const lookupSet =
-        provinceSet && provinceSet.size > 0 ? provinceSet : formattedSet;
+      const expectedKey = getMunicipalityComparisonKey(
+        getRecordName(record),
+        provinceName,
+      );
+      const provinceScopedMatch = inspectedFiles.some(
+        (file) =>
+          file.sourceKey === sourceKey &&
+          file.provinceKey === provinceKey &&
+          getMunicipalityComparisonKey(file.adm3Name, file.provinceName) ===
+            expectedKey,
+      );
+      const sourceScopedMatch = inspectedFiles.some(
+        (file) =>
+          file.sourceKey === sourceKey &&
+          getMunicipalityComparisonKey(file.adm3Name, file.provinceName) ===
+            expectedKey,
+      );
 
-      if (!hasMatchingFormattedFile(record, lookupSet)) {
+      if (!provinceScopedMatch && !sourceScopedMatch) {
         missingFiles.push({
           source: sourceKey,
           province: provinceName,
@@ -763,6 +797,101 @@ async function main(rootPaths = []) {
           expected: getRecordName(record),
         });
       }
+    }
+  }
+
+  const overlapFiles = [];
+  const overlapSeen = new Set();
+  const missingKeys = new Set(
+    missingFiles
+      .map(
+        (item) =>
+          `${normalizeText(item.province || "")}|${getMunicipalityComparisonKey(item.expected, item.province)}`,
+      )
+      .filter((key) => key.split("|")[1]),
+  );
+
+  for (const missing of missingFiles) {
+    const expectedName = String(missing.expected || "");
+    const expectedProvinceKey = normalizeText(missing.province || "");
+    const expectedMunicipalityKey = getMunicipalityComparisonKey(
+      expectedName,
+      missing.province,
+    );
+    if (!expectedMunicipalityKey) {
+      continue;
+    }
+
+    for (const passed of passedFiles) {
+      const passedFile = inspectedFiles.find(
+        (item) => item.file === passed.file,
+      );
+      if (!passedFile) {
+        continue;
+      }
+
+      const passedProvinceKey = normalizeText(passedFile.provinceName || "");
+      const passedMunicipalityKey = getMunicipalityComparisonKey(
+        passed.cityMuni || passedFile.adm3Name || "",
+        passedFile.provinceName,
+      );
+
+      if (
+        passedProvinceKey !== expectedProvinceKey ||
+        passedMunicipalityKey !== expectedMunicipalityKey
+      ) {
+        continue;
+      }
+
+      const key = `${passed.file}::${missing.source}::${expectedProvinceKey}::${expectedMunicipalityKey}`;
+      if (overlapSeen.has(key)) {
+        continue;
+      }
+      overlapSeen.add(key);
+      overlapFiles.push({
+        file: passed.file,
+        source: missing.source,
+        province: missing.province || "-",
+        expected: expectedName,
+      });
+    }
+  }
+
+  const duplicatePassedOverlaps = [];
+  const passedByMunicipalityKey = new Map();
+  for (const passed of passedFiles) {
+    const passedFile = inspectedFiles.find((item) => item.file === passed.file);
+    if (!passedFile) {
+      continue;
+    }
+
+    const provinceKey = normalizeText(passedFile.provinceName || "");
+    const municipalityKey = getMunicipalityComparisonKey(
+      passed.cityMuni || passedFile.adm3Name || "",
+      passedFile.provinceName,
+    );
+    if (!provinceKey || !municipalityKey) {
+      continue;
+    }
+
+    const scopedKey = `${provinceKey}|${municipalityKey}`;
+
+    const grouped = passedByMunicipalityKey.get(scopedKey) || [];
+    grouped.push(passed);
+    passedByMunicipalityKey.set(scopedKey, grouped);
+  }
+
+  for (const [scopedKey, groupedPassed] of passedByMunicipalityKey.entries()) {
+    if (groupedPassed.length <= 1 || missingKeys.has(scopedKey)) {
+      continue;
+    }
+
+    const [, ...extras] = groupedPassed;
+    for (const extra of extras) {
+      duplicatePassedOverlaps.push({
+        file: extra.file,
+        municipality: extra.cityMuni,
+      });
     }
   }
 
@@ -831,6 +960,60 @@ async function main(rootPaths = []) {
     console.log();
   }
 
+  if (overlapFiles.length) {
+    const overlapTable = new Table({
+      head: [
+        chalk.whiteBright("Passed File"),
+        chalk.whiteBright("Missing Source"),
+        chalk.whiteBright("Province"),
+        chalk.whiteBright("Missing Municipality"),
+      ],
+      style: { head: ["magenta"] },
+      colWidths: [42, 16, 20, 44],
+      wordWrap: true,
+    });
+
+    overlapFiles.forEach((item) =>
+      overlapTable.push([
+        chalk.magenta(item.file),
+        chalk.magenta(item.source),
+        chalk.magenta(item.province || "-"),
+        chalk.magenta(item.expected),
+      ]),
+    );
+
+    console.log(
+      chalk.bold.magenta("Passed files that overlap missing records"),
+    );
+    console.log(overlapTable.toString());
+    console.log();
+  }
+
+  if (duplicatePassedOverlaps.length) {
+    const duplicatePassTable = new Table({
+      head: [
+        chalk.whiteBright("Duplicate Passed File"),
+        chalk.whiteBright("Municipality"),
+      ],
+      style: { head: ["magenta"] },
+      colWidths: [42, 44],
+      wordWrap: true,
+    });
+
+    duplicatePassedOverlaps.forEach((item) =>
+      duplicatePassTable.push([
+        chalk.magenta(item.file),
+        chalk.magenta(item.municipality || ""),
+      ]),
+    );
+
+    console.log(chalk.bold.magenta("Duplicate passed municipality mappings"));
+    console.log(duplicatePassTable.toString());
+    console.log();
+  }
+
+  const totalOverlaps = overlapFiles.length + duplicatePassedOverlaps.length;
+
   const summaryTable = new Table({
     head: [chalk.whiteBright("Metric"), chalk.whiteBright("Count")],
     style: { head: ["cyan"] },
@@ -840,6 +1023,10 @@ async function main(rootPaths = []) {
   summaryTable.push(["Passed", chalk.green(String(passedFiles.length))]);
   summaryTable.push(["Failed", chalk.red(String(failedFiles.length))]);
   summaryTable.push(["Missing", chalk.yellow(String(missingFiles.length))]);
+  summaryTable.push([
+    "Overlaps (Missing+Duplicate)",
+    chalk.magenta(String(totalOverlaps)),
+  ]);
 
   console.log(chalk.bold.white("Summary"));
   console.log(summaryTable.toString());
