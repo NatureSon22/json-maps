@@ -1,573 +1,156 @@
+const data = {
+  region: "region_4a",
+  provinces: [
+    { id: 0, name: "cavite" },
+    { id: 1, name: "laguna" },
+    { id: 2, name: "batangas" },
+    { id: 3, name: "rizal" },
+    { id: 4, name: "quezon" },
+  ],
+  municipalities: [
+    { id: 0, provinceId: 0, districtId: 2, name: "bacoor", noOfBrgy: 47 },
+    { id: 1, provinceId: 0, districtId: 1, name: "cavite city", noOfBrgy: 84 },
+    { id: 2, provinceId: 0, districtId: 4, name: "dasmariñas", noOfBrgy: 75 },
+    { id: 3, provinceId: 0, districtId: 6, name: "general trias", noOfBrgy: 33 },
+    { id: 4, provinceId: 0, districtId: 3, name: "imus", noOfBrgy: 97 },
+    { id: 5, provinceId: 0, districtId: 8, name: "tagaytay", noOfBrgy: 34 },
+    { id: 6, provinceId: 0, districtId: 7, name: "trece martires", noOfBrgy: 13 },
+    { id: 7, provinceId: 0, districtId: 8, name: "alfonso", noOfBrgy: 32 },
+    { id: 8, provinceId: 0, districtId: 7, name: "amadeo", noOfBrgy: 26 },
+    { id: 9, provinceId: 0, districtId: 5, name: "carmona", noOfBrgy: 14 },
+    { id: 10, provinceId: 0, districtId: 8, name: "general emilio aguinaldo", noOfBrgy: 14 },
+    { id: 11, provinceId: 0, districtId: 5, name: "general mariano alvarez", noOfBrgy: 27 },
+    { id: 12, provinceId: 0, districtId: 7, name: "indang", noOfBrgy: 36 },
+    { id: 13, provinceId: 0, districtId: 1, name: "kawit", noOfBrgy: 23 },
+    { id: 14, provinceId: 0, districtId: 8, name: "magallanes", noOfBrgy: 16 },
+    { id: 15, provinceId: 0, districtId: 8, name: "maragondon", noOfBrgy: 27 },
+    { id: 16, provinceId: 0, districtId: 8, name: "mendez", noOfBrgy: 24 },
+    { id: 17, provinceId: 0, districtId: 8, name: "naic", noOfBrgy: 30 },
+    { id: 18, provinceId: 0, districtId: 1, name: "noveleta", noOfBrgy: 16 },
+    { id: 19, provinceId: 0, districtId: 1, name: "rosario (cavite)", noOfBrgy: 20 },
+    { id: 20, provinceId: 0, districtId: 5, name: "silang", noOfBrgy: 64 },
+    { id: 21, provinceId: 0, districtId: 7, name: "tanza", noOfBrgy: 41 },
+    { id: 22, provinceId: 0, districtId: 8, name: "ternate", noOfBrgy: 10 },
+    { id: 23, provinceId: 1, districtId: 1, name: "biñan", noOfBrgy: 24 },
+    { id: 24, provinceId: 1, districtId: 2, name: "cabuyao", noOfBrgy: 18 },
+    { id: 25, provinceId: 1, districtId: 7, name: "calamba", noOfBrgy: 54 },
+    { id: 26, provinceId: 1, districtId: 3, name: "san pablo", noOfBrgy: 80 },
+    { id: 27, provinceId: 1, districtId: 5, name: "san pedro", noOfBrgy: 27 },
+    { id: 28, provinceId: 1, districtId: 6, name: "santa rosa", noOfBrgy: 18 },
+    { id: 29, provinceId: 1, districtId: 3, name: "alaminos (laguna)", noOfBrgy: 15 },
+    { id: 30, provinceId: 1, districtId: 2, name: "bay", noOfBrgy: 15 },
+    { id: 31, provinceId: 1, districtId: 3, name: "calauan", noOfBrgy: 17 },
+    { id: 32, provinceId: 1, districtId: 4, name: "cavinti", noOfBrgy: 19 },
+    { id: 33, provinceId: 1, districtId: 4, name: "famy", noOfBrgy: 20 },
+    { id: 34, provinceId: 1, districtId: 4, name: "kalayaan (laguna)", noOfBrgy: 3 },
+    { id: 35, provinceId: 1, districtId: 3, name: "liliw", noOfBrgy: 33 },
+    { id: 36, provinceId: 1, districtId: 2, name: "los baños", noOfBrgy: 14 },
+    { id: 37, provinceId: 1, districtId: 4, name: "luisiana", noOfBrgy: 23 },
+    { id: 38, provinceId: 1, districtId: 4, name: "lumban", noOfBrgy: 16 },
+    { id: 39, provinceId: 1, districtId: 4, name: "mabitac", noOfBrgy: 15 },
+    { id: 40, provinceId: 1, districtId: 4, name: "magdalena", noOfBrgy: 24 },
+    { id: 41, provinceId: 1, districtId: 4, name: "majayjay", noOfBrgy: 40 },
+    { id: 42, provinceId: 1, districtId: 3, name: "nagcarlan", noOfBrgy: 52 },
+    { id: 43, provinceId: 1, districtId: 4, name: "paete", noOfBrgy: 9 },
+    { id: 44, provinceId: 1, districtId: 4, name: "pagsanjan", noOfBrgy: 16 },
+    { id: 45, provinceId: 1, districtId: 4, name: "pakil", noOfBrgy: 13 },
+    { id: 46, provinceId: 1, districtId: 4, name: "pangil", noOfBrgy: 8 },
+    { id: 47, provinceId: 1, districtId: 4, name: "pila", noOfBrgy: 17 },
+    { id: 48, provinceId: 1, districtId: 3, name: "rizal (laguna)", noOfBrgy: 26 },
+    { id: 49, provinceId: 1, districtId: 4, name: "santa cruz", noOfBrgy: 26 },
+    { id: 50, provinceId: 1, districtId: 4, name: "santa maria (laguna)", noOfBrgy: 12 },
+    { id: 51, provinceId: 1, districtId: 4, name: "siniloan", noOfBrgy: 20 },
+    { id: 52, provinceId: 1, districtId: 3, name: "victoria", noOfBrgy: 9 },
+    { id: 53, provinceId: 2, districtId: 5, name: "batangas city", noOfBrgy: 105 },
+    { id: 54, provinceId: 2, districtId: 6, name: "lipa", noOfBrgy: 72 },
+    { id: 55, provinceId: 2, districtId: 3, name: "sto. tomas", noOfBrgy: 30 },
+    { id: 56, provinceId: 2, districtId: 3, name: "tanauan", noOfBrgy: 48 },
+    { id: 57, provinceId: 2, districtId: 3, name: "agoncillo", noOfBrgy: 21 },
+    { id: 58, provinceId: 2, districtId: 3, name: "alitagtag", noOfBrgy: 19 },
+    { id: 59, provinceId: 2, districtId: 1, name: "balayan", noOfBrgy: 48 },
+    { id: 60, provinceId: 2, districtId: 3, name: "balete", noOfBrgy: 13 },
+    { id: 61, provinceId: 2, districtId: 2, name: "bauan", noOfBrgy: 40 },
+    { id: 62, provinceId: 2, districtId: 1, name: "calaca", noOfBrgy: 40 },
+    { id: 63, provinceId: 2, districtId: 1, name: "calatagan", noOfBrgy: 25 },
+    { id: 64, provinceId: 2, districtId: 3, name: "cuenca", noOfBrgy: 22 },
+    { id: 65, provinceId: 2, districtId: 4, name: "ibaan", noOfBrgy: 26 },
+    { id: 66, provinceId: 2, districtId: 3, name: "laurel", noOfBrgy: 21 },
+    { id: 67, provinceId: 2, districtId: 1, name: "lemery", noOfBrgy: 46 },
+    { id: 68, provinceId: 2, districtId: 1, name: "lian", noOfBrgy: 19 },
+    { id: 69, provinceId: 2, districtId: 2, name: "lobo", noOfBrgy: 48 },
+    { id: 70, provinceId: 2, districtId: 2, name: "mabini", noOfBrgy: 34 },
+    { id: 71, provinceId: 2, districtId: 3, name: "malvar", noOfBrgy: 15 },
+    { id: 72, provinceId: 2, districtId: 3, name: "mataasnakahoy", noOfBrgy: 16 },
+    { id: 73, provinceId: 2, districtId: 1, name: "nasugbu", noOfBrgy: 42 },
+    { id: 74, provinceId: 2, districtId: 4, name: "padre garcia", noOfBrgy: 18 },
+    { id: 75, provinceId: 2, districtId: 4, name: "rosario (batangas)", noOfBrgy: 48 },
+    { id: 76, provinceId: 2, districtId: 4, name: "san jose (batangas)", noOfBrgy: 33 },
+    { id: 77, provinceId: 2, districtId: 4, name: "san juan (batangas)", noOfBrgy: 42 },
+    { id: 78, provinceId: 2, districtId: 2, name: "san luis (batangas)", noOfBrgy: 26 },
+    { id: 79, provinceId: 2, districtId: 3, name: "san nicolas (batangas)", noOfBrgy: 18 },
+    { id: 80, provinceId: 2, districtId: 2, name: "san pascual", noOfBrgy: 29 },
+    { id: 81, provinceId: 2, districtId: 3, name: "santa teresita", noOfBrgy: 17 },
+    { id: 82, provinceId: 2, districtId: 3, name: "talisay", noOfBrgy: 21 },
+    { id: 83, provinceId: 2, districtId: 3, name: "taal", noOfBrgy: 42 },
+    { id: 84, provinceId: 2, districtId: 4, name: "taysan", noOfBrgy: 20 },
+    { id: 85, provinceId: 2, districtId: 2, name: "tingloy", noOfBrgy: 15 },
+    { id: 86, provinceId: 2, districtId: 1, name: "tuy", noOfBrgy: 22 },
+    { id: 87, provinceId: 3, districtId: "INDEPENDENT", name: "antipolo", noOfBrgy: 16 },
+    { id: 88, provinceId: 3, districtId: 1, name: "angono", noOfBrgy: 10 },
+    { id: 89, provinceId: 3, districtId: 2, name: "baras", noOfBrgy: 10 },
+    { id: 90, provinceId: 3, districtId: 1, name: "binangonan", noOfBrgy: 40 },
+    { id: 91, provinceId: 3, districtId: 1, name: "cainta", noOfBrgy: 7 },
+    { id: 92, provinceId: 3, districtId: 2, name: "cardona", noOfBrgy: 18 },
+    { id: 93, provinceId: 3, districtId: 2, name: "jala-jala", noOfBrgy: 11 },
+    { id: 94, provinceId: 3, districtId: 2, name: "morong (rizal)", noOfBrgy: 8 },
+    { id: 95, provinceId: 3, districtId: 2, name: "pililla", noOfBrgy: 9 },
+    { id: 96, provinceId: 3, districtId: 4, name: "rodriguez", noOfBrgy: 11 },
+    { id: 97, provinceId: 3, districtId: 3, name: "san mateo", noOfBrgy: 15 },
+    { id: 98, provinceId: 3, districtId: 2, name: "tanay", noOfBrgy: 20 },
+    { id: 99, provinceId: 3, districtId: 1, name: "taytay", noOfBrgy: 5 },
+    { id: 100, provinceId: 3, districtId: 2, name: "teresa", noOfBrgy: 9 },
+    { id: 101, provinceId: 4, districtId: 2, name: "lucena", noOfBrgy: 33 },
+    { id: 102, provinceId: 4, districtId: 1, name: "tayabas", noOfBrgy: 66 },
+    { id: 103, provinceId: 4, districtId: 3, name: "agdangan", noOfBrgy: 13 },
+    { id: 104, provinceId: 4, districtId: 4, name: "alabat", noOfBrgy: 19 },
+    { id: 105, provinceId: 4, districtId: 4, name: "atimonan", noOfBrgy: 42 },
+    { id: 106, provinceId: 4, districtId: 3, name: "buenavista (quezon)", noOfBrgy: 37 },
+    { id: 107, provinceId: 4, districtId: 1, name: "burdeos", noOfBrgy: 13 },
+    { id: 108, provinceId: 4, districtId: 4, name: "calauag", noOfBrgy: 81 },
+    { id: 109, provinceId: 4, districtId: 2, name: "candelaria", noOfBrgy: 25 },
+    { id: 110, provinceId: 4, districtId: 3, name: "catanauan", noOfBrgy: 27 },
+    { id: 111, provinceId: 4, districtId: 2, name: "dolores (quezon)", noOfBrgy: 16 },
+    { id: 112, provinceId: 4, districtId: 3, name: "general luna (quezon)", noOfBrgy: 27 },
+    { id: 113, provinceId: 4, districtId: 1, name: "general nakar", noOfBrgy: 19 },
+    { id: 114, provinceId: 4, districtId: 4, name: "guinayangan", noOfBrgy: 54 },
+    { id: 115, provinceId: 4, districtId: 4, name: "gumaca", noOfBrgy: 59 },
+    { id: 116, provinceId: 4, districtId: 1, name: "infanta (quezon)", noOfBrgy: 36 },
+    { id: 117, provinceId: 4, districtId: 1, name: "jomalig", noOfBrgy: 5 },
+    { id: 118, provinceId: 4, districtId: 4, name: "lopez", noOfBrgy: 95 },
+    { id: 119, provinceId: 4, districtId: 1, name: "lucban", noOfBrgy: 32 },
+    { id: 120, provinceId: 4, districtId: 3, name: "macalelon", noOfBrgy: 30 },
+    { id: 121, provinceId: 4, districtId: 3, name: "mulanay", noOfBrgy: null },
+    { id: 122, provinceId: 4, districtId: 1, name: "mauban", noOfBrgy: 40 },
+    { id: 123, provinceId: 4, districtId: 1, name: "pagbilao", noOfBrgy: 27 },
+    { id: 124, provinceId: 4, districtId: 1, name: "panukulan", noOfBrgy: 13 },
+    { id: 125, provinceId: 4, districtId: 1, name: "patnanungan", noOfBrgy: 6 },
+    { id: 126, provinceId: 4, districtId: 4, name: "perez", noOfBrgy: 14 },
+    { id: 127, provinceId: 4, districtId: 3, name: "pitogo (quezon)", noOfBrgy: 39 },
+    { id: 128, provinceId: 4, districtId: 4, name: "plaridel (quezon)", noOfBrgy: 9 },
+    { id: 129, provinceId: 4, districtId: 1, name: "polillo", noOfBrgy: 20 },
+    { id: 130, provinceId: 4, districtId: 4, name: "quezon (quezon)", noOfBrgy: 24 },
+    { id: 131, provinceId: 4, districtId: 1, name: "real", noOfBrgy: 17 },
+    { id: 132, provinceId: 4, districtId: 1, name: "sampaloc (quezon)", noOfBrgy: 14 },
+    { id: 133, provinceId: 4, districtId: 3, name: "san andres (quezon)", noOfBrgy: 7 },
+    { id: 134, provinceId: 4, districtId: 2, name: "san antonio (quezon)", noOfBrgy: 20 },
+    { id: 135, provinceId: 4, districtId: 3, name: "san francisco (quezon)", noOfBrgy: 16 },
+    { id: 136, provinceId: 4, districtId: 3, name: "san narciso (quezon)", noOfBrgy: 24 },
+    { id: 137, provinceId: 4, districtId: null, name: "padre burgos", noOfBrgy: null },
+    { id: 138, provinceId: 4, districtId: 2, name: "sariaya", noOfBrgy: 43 },
+    { id: 139, provinceId: 4, districtId: 4, name: "tagkawayan", noOfBrgy: 45 },
+    { id: 140, provinceId: 4, districtId: 2, name: "tiaong", noOfBrgy: 31 },
+    { id: 141, provinceId: 4, districtId: 3, name: "unisan", noOfBrgy: 36 }
+  ],
+};
 
-export const region4 = {
-    "region_4_a": [
-        {
-            cityMuni: "BACOOR",
-            noOfBarangays: 73,
-        },
-        {
-            cityMuni: "CAVITE CITY",
-            noOfBarangays: 84,
-        },
-        {
-            cityMuni: "DASMARIÑAS",
-            noOfBarangays: 75,
-        },
-        {
-            cityMuni: "GENERAL TRIAS",
-            noOfBarangays: 33,
-        },
-        {
-            cityMuni: "IMUS",
-            noOfBarangays: 97,
-        },
-        {
-            cityMuni: "TAGAYTAY",
-            noOfBarangays: 34,
-        },
-        {
-            cityMuni: "TRECE MARTIRES",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "ALFONSO",
-            noOfBarangays: 32,
-        },
-        {
-            cityMuni: "AMADEO",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "CARMONA",
-            noOfBarangays: 14,
-        },
-        {
-            cityMuni: "GENERAL EMILIO AGUINALDO",
-            noOfBarangays: 14,
-        },
-        {
-            cityMuni: "GENERAL MARIANO ALVAREZ",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "INDANG",
-            noOfBarangays: 36,
-        },
-        {
-            cityMuni: "KAWIT",
-            noOfBarangays: 23,
-        },
-        {
-            cityMuni: "MAGALLANES",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "MARAGONDON",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "MENDEZ",
-            noOfBarangays: 24,
-        },
-        {
-            cityMuni: "NAIC",
-            noOfBarangays: 30,
-        },
-        {
-            cityMuni: "NOVELETA",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "ROSARIO (CAVITE)",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "SILANG",
-            noOfBarangays: 64,
-        },
-        {
-            cityMuni: "TANZA",
-            noOfBarangays: 41,
-        },
-        {
-            cityMuni: "TERNATE",
-            noOfBarangays: 10,
-        },
-        {
-            cityMuni: "BIÑAN",
-            noOfBarangays: 24,
-        },
-        {
-            cityMuni: "CABUYAO",
-            noOfBarangays: 18,
-        },
-        {
-            cityMuni: "CALAMBA",
-            noOfBarangays: 54,
-        },
-        {
-            cityMuni: "SAN PABLO",
-            noOfBarangays: 80,
-        },
-        {
-            cityMuni: "SAN PEDRO",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "SANTA ROSA",
-            noOfBarangays: 18,
-        },
-        {
-            cityMuni: "ALAMINOS (LAGUNA)",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "BAY",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "CALAUAN",
-            noOfBarangays: 17,
-        },
-        {
-            cityMuni: "CAVINTI",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "FAMY",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "KALAYAAN (LAGUNA)",
-            noOfBarangays: 3,
-        },
-        {
-            cityMuni: "LILIW",
-            noOfBarangays: 33,
-        },
-        {
-            cityMuni: "LOS BAÑOS",
-            noOfBarangays: 14,
-        },
-        {
-            cityMuni: "LUISIANA",
-            noOfBarangays: 23,
-        },
-        {
-            cityMuni: "LUMBAN",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "MABITAC",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "MAGDALENA",
-            noOfBarangays: 24,
-        },
-        {
-            cityMuni: "MAJAYJAY",
-            noOfBarangays: 40,
-        },
-        {
-            cityMuni: "NAGCARLAN",
-            noOfBarangays: 52,
-        },
-        {
-            cityMuni: "PAETE",
-            noOfBarangays: 9,
-        },
-        {
-            cityMuni: "PAGSANJAN",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "PAKIL",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "PANGIL",
-            noOfBarangays: 8,
-        },
-        {
-            cityMuni: "PILA",
-            noOfBarangays: 17,
-        },
-        {
-            cityMuni: "RIZAL (LAGUNA)",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "SANTA CRUZ",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "SANTA MARIA (LAGUNA)",
-            noOfBarangays: 12,
-        },
-        {
-            cityMuni: "SINILOAN",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "VICTORIA",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "BATANGAS CITY",
-            noOfBarangays: 105,
-        },
-        {
-            cityMuni: "LIPA",
-            noOfBarangays: 72,
-        },
-        {
-            cityMuni: "STO. TOMAS",
-            noOfBarangays: 30,
-        },
-        {
-            cityMuni: "TANAUAN",
-            noOfBarangays: 48,
-        },
-        {
-            cityMuni: "AGONCILLO",
-            noOfBarangays: 21,
-        },
-        {
-            cityMuni: "ALITAGTAG",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "BALAYAN",
-            noOfBarangays: 48,
-        },
-        {
-            cityMuni: "BALETE",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "BAUAN",
-            noOfBarangays: 40,
-        },
-        {
-            cityMuni: "CALACA",
-            noOfBarangays: 40,
-        },
-        {
-            cityMuni: "CALATAGAN",
-            noOfBarangays: 25,
-        },
-        {
-            cityMuni: "CUENCA",
-            noOfBarangays: 22,
-        },
-        {
-            cityMuni: "IBAAN",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "LAUREL",
-            noOfBarangays: 21,
-        },
-        {
-            cityMuni: "LEMERY",
-            noOfBarangays: 46,
-        },
-        {
-            cityMuni: "LIAN",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "LOBO",
-            noOfBarangays: 48,
-        },
-        {
-            cityMuni: "MABINI",
-            noOfBarangays: 34,
-        },
-        {
-            cityMuni: "MALVAR",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "MATAASNAKAHOY",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "NASUGBU",
-            noOfBarangays: 42,
-        },
-        {
-            cityMuni: "PADRE GARCIA",
-            noOfBarangays: 18,
-        },
-        {
-            cityMuni: "ROSARIO (BATANGAS)",
-            noOfBarangays: 48,
-        },
-        {
-            cityMuni: "SAN JOSE (BATANGAS)",
-            noOfBarangays: 33,
-        },
-        {
-            cityMuni: "SAN JUAN (BATANGAS)",
-            noOfBarangays: 42,
-        },
-        {
-            cityMuni: "SAN LUIS (BATANGAS)",
-            noOfBarangays: 26,
-        },
-        {
-            cityMuni: "SAN NICOLAS (BATANGAS)",
-            noOfBarangays: 18,
-        },
-        {
-            cityMuni: "SAN PASCUAL",
-            noOfBarangays: 29,
-        },
-        {
-            cityMuni: "SANTA TERESITA",
-            noOfBarangays: 17,
-        },
-        {
-            cityMuni: "TALISAY",
-            noOfBarangays: 21,
-        },
-        {
-            cityMuni: "TAAL",
-            noOfBarangays: 42,
-        },
-        {
-            cityMuni: "TAYSAN",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "TINGLOY",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "TUY",
-            noOfBarangays: 22,
-        },
-        {
-            cityMuni: "ANTIPOLO",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "ANGONO",
-            noOfBarangays: 10,
-        },
-        {
-            cityMuni: "BARAS",
-            noOfBarangays: 10,
-        },
-        {
-            cityMuni: "BINANGONAN",
-            noOfBarangays: 40,
-        },
-        {
-            cityMuni: "CAINTA",
-            noOfBarangays: 7,
-        },
-        {
-            cityMuni: "CARDONA",
-            noOfBarangays: 18,
-        },
-        {
-            cityMuni: "JALA-JALA",
-            noOfBarangays: 11,
-        },
-        {
-            cityMuni: "MORONG (RIZAL)",
-            noOfBarangays: 8,
-        },
-        {
-            cityMuni: "PILILLA",
-            noOfBarangays: 9,
-        },
-        {
-            cityMuni: "RODRIGUEZ",
-            noOfBarangays: 11,
-        },
-        {
-            cityMuni: "SAN MATEO",
-            noOfBarangays: 15,
-        },
-        {
-            cityMuni: "TANAY",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "TAYTAY",
-            noOfBarangays: 8,
-        },
-        {
-            cityMuni: "TERESA",
-            noOfBarangays: 9,
-        },
-        {
-            cityMuni: "LUCENA",
-            noOfBarangays: 33,
-        },
-        {
-            cityMuni: "TAYABAS",
-            noOfBarangays: 66,
-        },
-        {
-            cityMuni: "AGDANGAN",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "ALABAT",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "ATIMONAN",
-            noOfBarangays: 42,
-        },
-        {
-            cityMuni: "BUENAVISTA (QUEZON)",
-            noOfBarangays: 37,
-        },
-        {
-            cityMuni: "BURDEOS",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "CALAUAG",
-            noOfBarangays: 81,
-        },
-        {
-            cityMuni: "CANDELARIA",
-            noOfBarangays: 25,
-        },
-        {
-            cityMuni: "CATANAUAN",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "DOLORES (QUEZON)",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "GENERAL LUNA (QUEZON)",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "GENERAL NAKAR",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "GUINAYANGAN",
-            noOfBarangays: 54,
-        },
-        {
-            cityMuni: "GUMACA",
-            noOfBarangays: 59,
-        },
-        {
-            cityMuni: "INFANTA (QUEZON)",
-            noOfBarangays: 36,
-        },
-        {
-            cityMuni: "JOMALIG",
-            noOfBarangays: 5,
-        },
-        {
-            cityMuni: "LOPEZ",
-            noOfBarangays: 95,
-        },
-        {
-            cityMuni: "LUCBAN",
-            noOfBarangays: 32,
-        },
-        {
-            cityMuni: "MACALELON",
-            noOfBarangays: 30,
-        },
-        {
-            cityMuni: "MULANAY",
-            noOfBarangays: null,
-        },
-        {
-            cityMuni: "MAUBAN",
-            noOfBarangays: 40,
-        },
-        {
-            cityMuni: "PAGBILAO",
-            noOfBarangays: 27,
-        },
-        {
-            cityMuni: "PANUKULAN",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "PATNANUNGAN",
-            noOfBarangays: 13,
-        },
-        {
-            cityMuni: "PEREZ",
-            noOfBarangays: 14,
-        },
-        {
-            cityMuni: "PITOGO (QUEZON)",
-            noOfBarangays: 39,
-        },
-        {
-            cityMuni: "PLARIDEL (QUEZON)",
-            noOfBarangays: 19,
-        },
-        {
-            cityMuni: "POLILLO",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "QUEZON (QUEZON)",
-            noOfBarangays: 24,
-        },
-        {
-            cityMuni: "REAL",
-            noOfBarangays: 17,
-        },
-        {
-            cityMuni: "SAMPALOC (QUEZON)",
-            noOfBarangays: 14,
-        },
-        {
-            cityMuni: "SAN ANDRES (QUEZON)",
-            noOfBarangays: 7,
-        },
-        {
-            cityMuni: "SAN ANTONIO (QUEZON)",
-            noOfBarangays: 20,
-        },
-        {
-            cityMuni: "SAN FRANCISCO (QUEZON)",
-            noOfBarangays: 16,
-        },
-        {
-            cityMuni: "SAN NARCISO (QUEZON)",
-            noOfBarangays: 24,
-        },
-        {
-            cityMuni: "PADRE BURGOS",
-            noOfBarangays: null,
-        },
-        {
-            cityMuni: "SARIAYA",
-            noOfBarangays: 43,
-        },
-        {
-            cityMuni: "TAGKAWAYAN",
-            noOfBarangays: 45,
-        },
-        {
-            cityMuni: "TIAONG",
-            noOfBarangays: 31,
-        },
-        {
-            cityMuni: "UNISAN",
-            noOfBarangays: 36,
-        }
-    ]
-}
+module.exports = data;
