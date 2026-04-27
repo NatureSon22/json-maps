@@ -514,6 +514,49 @@ function buildFileNameIndex(jsonFiles, baseDir) {
   return index;
 }
 
+function buildSelectedFolderScope(validationRoots, jsonFiles) {
+  const selectedSourceKeys = new Set(
+    jsonFiles.map((filePath) => getSourceKeyFromPath(filePath)).filter(Boolean),
+  );
+  const provinceFiltersBySource = new Map();
+
+  for (const rootPath of validationRoots) {
+    const relativePath = path.relative(formattedDir, rootPath);
+    const segments = relativePath.split(path.sep).filter(Boolean);
+    if (!segments.length) {
+      continue;
+    }
+
+    const sourceKey = normalizeText(segments[0]);
+    if (!sourceKey) {
+      continue;
+    }
+
+    selectedSourceKeys.add(sourceKey);
+
+    // Selecting a source root means include all of its provinces/cities.
+    if (segments.length === 1) {
+      provinceFiltersBySource.set(sourceKey, null);
+      continue;
+    }
+
+    if (provinceFiltersBySource.get(sourceKey) === null) {
+      continue;
+    }
+
+    const provinceKey = normalizeText(segments[1]);
+    if (!provinceKey) {
+      continue;
+    }
+
+    const scopedProvinces = provinceFiltersBySource.get(sourceKey) || new Set();
+    scopedProvinces.add(provinceKey);
+    provinceFiltersBySource.set(sourceKey, scopedProvinces);
+  }
+
+  return { selectedSourceKeys, provinceFiltersBySource };
+}
+
 function buildUnfilteredFileEntries(jsonFiles, baseDir) {
   const entries = [];
 
@@ -741,6 +784,8 @@ async function main(rootPaths = []) {
   const jsonFiles = validationRoots.flatMap((rootPath) =>
     collectJsonFiles(rootPath),
   );
+  const { selectedSourceKeys, provinceFiltersBySource } =
+    buildSelectedFolderScope(validationRoots, jsonFiles);
   const formattedIndex = buildFormattedIndex(jsonFiles);
   const formattedProvinceIndex = buildFormattedProvinceIndex(jsonFiles);
   const unfilteredFiles = collectJsonFiles(unfilteredDir);
@@ -807,12 +852,12 @@ async function main(rootPaths = []) {
   console.log("---");
   console.log();
 
-  const allowedSourceKeys = new Set(
-    formattedFolderAllowlist.map((folder) => normalizeText(folder)),
-  );
-
   for (const [sourceKey, sourceData] of Object.entries(sources)) {
-    if (!allowedSourceKeys.has(normalizeText(sourceKey))) {
+    const normalizedSourceKey = normalizeText(sourceKey);
+    if (
+      selectedSourceKeys.size > 0 &&
+      !selectedSourceKeys.has(normalizedSourceKey)
+    ) {
       continue;
     }
 
@@ -824,6 +869,15 @@ async function main(rootPaths = []) {
 
       const provinceName = getRecordProvince(record, sourceData, sourceKey);
       const provinceKey = normalizeText(provinceName);
+      const provinceFilter = provinceFiltersBySource.get(normalizedSourceKey);
+      if (
+        provinceFilter instanceof Set &&
+        provinceFilter.size > 0 &&
+        !provinceFilter.has(provinceKey)
+      ) {
+        continue;
+      }
+
       const expectedKey = getMunicipalityComparisonKey(
         getRecordName(record),
         provinceName,
@@ -1065,7 +1119,7 @@ async function main(rootPaths = []) {
       head: [
         chalk.whiteBright("Duplicate Passed File"),
         chalk.whiteBright("Municipality"),
-        chalk.whiteBright("Unfiltered Matches"),
+        chalk.whiteBright("Files with Similar Municipality (/unfiltered)"),
       ],
       style: { head: ["magenta"] },
       colWidths: [40, 22, 46],
