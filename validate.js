@@ -5,6 +5,7 @@ const Table = require("cli-table3");
 
 const rootDir = process.cwd();
 const formattedDir = path.join(rootDir, "formatted");
+const cleanDir = path.join(rootDir, "clean");
 const unfilteredDir = path.join(rootDir, "unfiltered");
 const dataDir = path.join(rootDir, "data");
 const formattedFolderAllowlist = [
@@ -225,6 +226,18 @@ function getValidationRoots() {
   return formattedFolderAllowlist
     .map((folder) => path.join(formattedDir, folder))
     .filter((folderPath) => fs.existsSync(folderPath));
+}
+
+function resetCleanDirectory() {
+  fs.rmSync(cleanDir, { recursive: true, force: true });
+  fs.mkdirSync(cleanDir, { recursive: true });
+}
+
+function copyPassedFileToClean(filePath) {
+  const relativeFromFormatted = path.relative(formattedDir, filePath);
+  const outputPath = path.join(cleanDir, relativeFromFormatted);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.copyFileSync(filePath, outputPath);
 }
 
 function loadDataSources() {
@@ -803,6 +816,8 @@ async function main(rootPaths = []) {
     process.exit(1);
   }
 
+  resetCleanDirectory();
+
   const passedFiles = [];
   const failedFiles = [];
   const missingFiles = [];
@@ -822,6 +837,7 @@ async function main(rootPaths = []) {
         cityMuni: result.cityMuni || "",
         adm3Name: result.adm3Name || "",
       });
+      copyPassedFileToClean(filePath);
       console.log(`${label} ${chalk.whiteBright.bold(relativePath)}`);
     } else {
       failedFiles.push({
@@ -882,19 +898,54 @@ async function main(rootPaths = []) {
         getRecordName(record),
         provinceName,
       );
-      const provinceScopedMatch = inspectedFiles.some(
-        (file) =>
-          file.sourceKey === sourceKey &&
-          file.provinceKey === provinceKey &&
-          getMunicipalityComparisonKey(file.adm3Name, file.provinceName) ===
-            expectedKey,
-      );
-      const sourceScopedMatch = inspectedFiles.some(
-        (file) =>
-          file.sourceKey === sourceKey &&
-          getMunicipalityComparisonKey(file.adm3Name, file.provinceName) ===
-            expectedKey,
-      );
+      const provinceScopedMatch = inspectedFiles.some((file) => {
+        if (file.sourceKey !== sourceKey || file.provinceKey !== provinceKey) {
+          return false;
+        }
+
+        const formattedFileBase = getRelativeFileBase(file.file);
+        const adm3Key = getMunicipalityComparisonKey(
+          file.adm3Name,
+          file.provinceName,
+        );
+        const fileBaseKey = getMunicipalityComparisonKey(
+          formattedFileBase,
+          file.provinceName,
+        );
+        const likelyNameMatch =
+          namesLikelyMatch(file.adm3Name, getRecordName(record)) ||
+          namesLikelyMatch(formattedFileBase, getRecordName(record));
+
+        return (
+          adm3Key === expectedKey ||
+          fileBaseKey === expectedKey ||
+          likelyNameMatch
+        );
+      });
+      const sourceScopedMatch = inspectedFiles.some((file) => {
+        if (file.sourceKey !== sourceKey) {
+          return false;
+        }
+
+        const formattedFileBase = getRelativeFileBase(file.file);
+        const adm3Key = getMunicipalityComparisonKey(
+          file.adm3Name,
+          file.provinceName,
+        );
+        const fileBaseKey = getMunicipalityComparisonKey(
+          formattedFileBase,
+          file.provinceName,
+        );
+        const likelyNameMatch =
+          namesLikelyMatch(file.adm3Name, getRecordName(record)) ||
+          namesLikelyMatch(formattedFileBase, getRecordName(record));
+
+        return (
+          adm3Key === expectedKey ||
+          fileBaseKey === expectedKey ||
+          likelyNameMatch
+        );
+      });
 
       if (!provinceScopedMatch && !sourceScopedMatch) {
         missingFiles.push({
@@ -1192,6 +1243,8 @@ module.exports = {
   buildFormattedIndex,
   buildFormattedProvinceIndex,
   buildFileNameIndex,
+  resetCleanDirectory,
+  copyPassedFileToClean,
   getRecordName,
   getRecordBarangayCount,
   getRecordProvince,
