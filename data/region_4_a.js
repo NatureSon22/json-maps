@@ -1,12 +1,11 @@
 const data = {
   region: "region_4a",
   provinces: [
-    { id: 0, name: "albay" },
-    { id: 1, name: "camarines norte" },
-    { id: 2, name: "camarines sur" },
-    { id: 3, name: "catanduanes" },
-    { id: 4, name: "masbate" },
-    { id: 5, name: "sorsogon" },
+    { id: 0, name: "cavite" },
+    { id: 1, name: "laguna" },
+    { id: 2, name: "batangas" },
+    { id: 3, name: "rizal" },
+    { id: 4, name: "quezon" },
   ],
   municipalities: [
     { id: 0, provinceId: 0, districtId: 2, name: "bacoor", noOfBrgy: 47 },
