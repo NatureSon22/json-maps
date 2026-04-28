@@ -6,7 +6,7 @@ const inputPaths = process.argv.slice(2);
 const defaultScanPaths = [path.join(rootDir, "unfiltered")];
 const pathsToScan = inputPaths.length ? inputPaths : defaultScanPaths;
 
-const FEATURE_COLLECTION_REGEX = /{"type"\s*:\s*"FeatureCollection"/;
+const FEATURE_COLLECTION_REGEX = /{\s*"type"\s*:\s*"FeatureCollection"/;
 
 const ALLOWED_GEO_LEVELS = new Set(["Mun", "City", "Bgy"]);
 const GEO_LEVEL_MAP = {
@@ -247,11 +247,20 @@ function extractFeaturesFromTopLevelObjects(rawText) {
         Array.isArray(parsed.features)
       ) {
         for (const feature of parsed.features) {
-          if (feature?.properties?.geo_level) {
+          if (
+            feature?.properties?.geo_level ||
+            feature?.properties?.ADM3_EN ||
+            feature?.properties?.ADM4_EN
+          ) {
             features.push(feature);
           }
         }
-      } else if (parsed.type === "Feature" && parsed?.properties?.geo_level) {
+      } else if (
+        parsed.type === "Feature" &&
+        (parsed?.properties?.geo_level ||
+          parsed?.properties?.ADM3_EN ||
+          parsed?.properties?.ADM4_EN)
+      ) {
         features.push(parsed);
       }
     } catch (_) {
@@ -354,7 +363,15 @@ function extractFeaturesDeep(node, output = []) {
     return output;
   }
 
-  const geoLevel = normalizeGeoLevel(node?.properties?.geo_level);
+  const geoLevel =
+    normalizeGeoLevel(node?.properties?.geo_level) ||
+    (node?.properties?.ADM4_EN || node?.properties?.ADM4_PCODE
+      ? "Bgy"
+      : node?.properties?.ADM3_EN || node?.properties?.ADM3_PCODE
+        ? /city|ci\b/i.test(String(node?.properties?.ADM3_EN || ""))
+          ? "City"
+          : "Mun"
+        : null);
   if (geoLevel) {
     output.push(node);
     return output;
@@ -389,17 +406,41 @@ function normalizeFeature(feature) {
     return null;
   }
 
-  const level = getFeatureLevel(feature);
+  // Normalize properties: support legacy uppercase keys (e.g. ADM3_EN / ADM3_PCODE)
+  let properties = {};
+  if (feature.properties && typeof feature.properties === "object") {
+    for (const [k, v] of Object.entries(feature.properties)) {
+      if (k === "ADM3_EN") properties.adm3_en = v;
+      else if (k === "ADM3_PCODE") properties.adm3_psgc = v;
+      else if (k === "ADM4_EN") properties.adm4_en = v;
+      else if (k === "ADM4_PCODE") properties.adm4_psgc = v;
+      else if (k === "ADM2_EN") properties.adm2_en = v;
+      else if (k === "ADM2_PCODE") properties.adm2_psgc = v;
+      else if (k === "ADM1_EN") properties.adm1_en = v;
+      else if (k === "ADM1_PCODE") properties.adm1_psgc = v;
+      else {
+        const lk = String(k).toLowerCase();
+        properties[lk] = v;
+      }
+    }
+  }
+
+  let level = getFeatureLevel(feature);
+  if (!level) {
+    level = properties.adm4_en || properties.adm4_psgc ? "Bgy" : null;
+  }
+  if (!level && (properties.adm3_en || properties.adm3_psgc)) {
+    level = /city|ci\b/i.test(String(properties.adm3_en || "")) ? "City" : "Mun";
+  }
+
   if (!ALLOWED_GEO_LEVELS.has(level)) {
     return null;
   }
 
-  const properties =
-    feature.properties && typeof feature.properties === "object"
-      ? { ...feature.properties, geo_level: level }
-      : {};
-  const fallbackId =
-    level === "Bgy" ? properties.adm4_psgc : properties.adm3_psgc;
+  // Ensure normalized geo_level is present
+  properties.geo_level = level;
+
+  const fallbackId = level === "Bgy" ? properties.adm4_psgc : properties.adm3_psgc;
 
   return {
     type: "Feature",
